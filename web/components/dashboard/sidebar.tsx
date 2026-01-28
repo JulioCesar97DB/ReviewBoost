@@ -45,9 +45,32 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
 				collapsed ? "w-16" : "w-64"
 			)}
 		>
-			<div className="flex h-16 items-center justify-between border-b border-border px-4">
-				{!collapsed && <Logo size="sm" />}
-				{collapsed && <Logo size="sm" showText={false} />}
+			<div className="flex h-16 items-center justify-between border-b border-border px-3">
+				{collapsed ? (
+					<Logo size="sm" showText={false} className="mx-auto" />
+				) : (
+					<>
+						<Logo size="sm" />
+						<Button
+							variant="ghost"
+							size="icon"
+							className="h-7 w-7"
+							onClick={onToggle}
+						>
+							<ChevronLeft className="h-4 w-4" />
+						</Button>
+					</>
+				)}
+				{collapsed && (
+					<Button
+						variant="ghost"
+						size="icon"
+						className="absolute -right-3 top-4 h-6 w-6 rounded-full border border-border bg-card shadow-sm"
+						onClick={onToggle}
+					>
+						<ChevronRight className="h-3 w-3" />
+					</Button>
+				)}
 			</div>
 
 			<nav className="flex-1 space-y-1 p-2">
@@ -94,22 +117,6 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
 						</Link>
 					);
 				})}
-
-				<Button
-					variant="ghost"
-					size="sm"
-					className={cn("mt-2 w-full", collapsed && "px-0")}
-					onClick={onToggle}
-				>
-					{collapsed ? (
-						<ChevronRight className="h-4 w-4" />
-					) : (
-						<>
-							<ChevronLeft className="mr-2 h-4 w-4" />
-							Collapse
-						</>
-					)}
-				</Button>
 			</div>
 		</aside>
 	);
