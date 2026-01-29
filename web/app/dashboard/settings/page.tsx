@@ -1,5 +1,6 @@
 "use client";
 
+import { ThemeSelector } from "@/components/theme-selector";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,18 +17,13 @@ import { cn } from "@/lib/utils";
 import {
 	Bell,
 	Building2,
-	Check,
 	CreditCard,
-	Globe,
 	Key,
 	Link2,
 	LogOut,
-	Moon,
 	Shield,
-	Sun,
 	User,
 } from "lucide-react";
-import { useTheme } from "next-themes";
 import { useState } from "react";
 
 type SettingsTab =
@@ -109,69 +105,6 @@ function ProfileSettings() {
 					<ThemeSelector />
 				</CardContent>
 			</Card>
-		</div>
-	);
-}
-
-function ThemeSelector() {
-	const { theme, setTheme } = useTheme();
-
-	return (
-		<div className="flex gap-4">
-			<button
-				type="button"
-				onClick={() => setTheme("light")}
-				className={cn(
-					"flex flex-col items-center gap-2 rounded-lg border-2 p-4 transition-colors",
-					theme === "light"
-						? "border-primary bg-primary/5"
-						: "border-border hover:border-primary/50"
-				)}
-			>
-				<div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-100">
-					<Sun className="h-6 w-6 text-amber-600" />
-				</div>
-				<span className="text-sm font-medium">Light</span>
-				{theme === "light" && (
-					<Check className="h-4 w-4 text-primary" />
-				)}
-			</button>
-			<button
-				type="button"
-				onClick={() => setTheme("dark")}
-				className={cn(
-					"flex flex-col items-center gap-2 rounded-lg border-2 p-4 transition-colors",
-					theme === "dark"
-						? "border-primary bg-primary/5"
-						: "border-border hover:border-primary/50"
-				)}
-			>
-				<div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-800">
-					<Moon className="h-6 w-6 text-slate-200" />
-				</div>
-				<span className="text-sm font-medium">Dark</span>
-				{theme === "dark" && (
-					<Check className="h-4 w-4 text-primary" />
-				)}
-			</button>
-			<button
-				type="button"
-				onClick={() => setTheme("system")}
-				className={cn(
-					"flex flex-col items-center gap-2 rounded-lg border-2 p-4 transition-colors",
-					theme === "system"
-						? "border-primary bg-primary/5"
-						: "border-border hover:border-primary/50"
-				)}
-			>
-				<div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-amber-100 to-slate-800">
-					<Globe className="h-6 w-6 text-white" />
-				</div>
-				<span className="text-sm font-medium">System</span>
-				{theme === "system" && (
-					<Check className="h-4 w-4 text-primary" />
-				)}
-			</button>
 		</div>
 	);
 }
