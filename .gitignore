@@ -120,3 +120,15 @@ coverage/
 # Misc
 # ===================
 .vercel
+
+# ===================
+# Claude / AI
+# ===================
+.claude/
+CLAUDE.md
+ReviewBoost-Requirements.md
+
+# ===================
+# Documentation (local only)
+# ===================
+docs/
