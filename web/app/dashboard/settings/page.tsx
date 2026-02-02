@@ -1,5 +1,6 @@
 "use client";
 
+import { GoogleIntegrationCard } from "@/components/dashboard/google-integration-card";
 import { ThemeSelector } from "@/components/theme-selector";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -211,47 +212,40 @@ function NotificationSettings() {
 }
 
 function IntegrationSettings() {
-	const integrations = [
-		{
-			name: "Google Business Profile",
-			description: "Sync reviews from Google",
-			connected: true,
-			icon: "🔵",
-		},
+	const upcomingIntegrations = [
 		{
 			name: "Yelp",
 			description: "Sync reviews from Yelp",
-			connected: false,
 			icon: "🔴",
 		},
 		{
 			name: "Facebook",
 			description: "Sync reviews from Facebook",
-			connected: false,
 			icon: "🔵",
 		},
 		{
 			name: "Twilio",
 			description: "Send SMS review requests",
-			connected: true,
 			icon: "📱",
 		},
 	];
 
 	return (
 		<div className="space-y-6">
+			<GoogleIntegrationCard />
+
 			<Card>
 				<CardHeader>
-					<CardTitle>Connected Services</CardTitle>
+					<CardTitle>Coming Soon</CardTitle>
 					<CardDescription>
-						Manage your integrations with external services.
+						These integrations will be available in future updates.
 					</CardDescription>
 				</CardHeader>
 				<CardContent className="space-y-4">
-					{integrations.map((integration) => (
+					{upcomingIntegrations.map((integration) => (
 						<div
 							key={integration.name}
-							className="flex items-center justify-between rounded-lg border p-4"
+							className="flex items-center justify-between rounded-lg border p-4 opacity-60"
 						>
 							<div className="flex items-center gap-4">
 								<span className="text-2xl">{integration.icon}</span>
@@ -262,21 +256,7 @@ function IntegrationSettings() {
 									</p>
 								</div>
 							</div>
-							{integration.connected ? (
-								<div className="flex items-center gap-2">
-									<Badge
-										variant="secondary"
-										className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-									>
-										Connected
-									</Badge>
-									<Button variant="outline" size="sm">
-										Disconnect
-									</Button>
-								</div>
-							) : (
-								<Button size="sm">Connect</Button>
-							)}
+							<Badge variant="outline">Coming Soon</Badge>
 						</div>
 					))}
 				</CardContent>
