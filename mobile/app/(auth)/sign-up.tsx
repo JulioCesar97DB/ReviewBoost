@@ -3,7 +3,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { signInWithGoogle } from '@/lib/auth/google-auth';
 import { supabase } from '@/lib/supabase';
+import { Ionicons } from '@expo/vector-icons';
 import { Link, router } from 'expo-router';
 import { useState } from 'react';
 import {
@@ -25,6 +27,7 @@ export default function SignUpScreen() {
 	const [password, setPassword] = useState('');
 	const [confirmPassword, setConfirmPassword] = useState('');
 	const [isLoading, setIsLoading] = useState(false);
+	const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 	const [errors, setErrors] = useState<{
 		fullName?: string;
 		email?: string;
@@ -94,6 +97,16 @@ export default function SignUpScreen() {
 		}
 	};
 
+	const handleGoogleSignIn = async () => {
+		setIsGoogleLoading(true);
+		const { error } = await signInWithGoogle();
+		setIsGoogleLoading(false);
+
+		if (error && error.message !== 'Sign in cancelled') {
+			Alert.alert('Error', error.message);
+		}
+	};
+
 	return (
 		<SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
 			<KeyboardAvoidingView
@@ -160,8 +173,30 @@ export default function SignUpScreen() {
 								error={errors.confirmPassword}
 							/>
 
-							<Button onPress={handleSignUp} isLoading={isLoading}>
+							<Button onPress={handleSignUp} isLoading={isLoading} disabled={isGoogleLoading}>
 								Create Account
+							</Button>
+
+							<View style={styles.divider}>
+								<View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+								<Text style={[styles.dividerText, { color: colors.mutedForeground }]}>
+									or continue with
+								</Text>
+								<View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+							</View>
+
+							<Button
+								variant="outline"
+								onPress={handleGoogleSignIn}
+								isLoading={isGoogleLoading}
+								disabled={isLoading}
+							>
+								<View style={styles.googleButtonContent}>
+									<Ionicons name="logo-google" size={20} color="#4285F4" />
+									<Text style={[styles.googleButtonText, { color: colors.foreground }]}>
+										Google
+									</Text>
+								</View>
 							</Button>
 						</View>
 
@@ -223,5 +258,29 @@ const styles = StyleSheet.create({
 	link: {
 		fontSize: 14,
 		fontWeight: '600',
+	},
+	divider: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		marginVertical: 8,
+	},
+	dividerLine: {
+		flex: 1,
+		height: 1,
+	},
+	dividerText: {
+		paddingHorizontal: 16,
+		fontSize: 12,
+		textTransform: 'uppercase',
+	},
+	googleButtonContent: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		justifyContent: 'center',
+		gap: 8,
+	},
+	googleButtonText: {
+		fontSize: 16,
+		fontWeight: '500',
 	},
 });

@@ -225,3 +225,8 @@ export async function revokeGoogleToken(): Promise<void> {
 
 	await clearStoredTokens();
 }
+
+export async function isGoogleConnected(): Promise<boolean> {
+	const { accessToken, refreshToken } = await getStoredTokens();
+	return !!(accessToken || refreshToken);
+}
