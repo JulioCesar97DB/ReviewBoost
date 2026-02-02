@@ -1,3 +1,4 @@
+import { GoogleIntegration } from '@/components/settings/google-integration';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Colors } from '@/constants/theme';
@@ -5,7 +6,7 @@ import { useAuthContext } from '@/hooks/use-auth-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { supabase } from '@/lib/supabase';
 import { Ionicons } from '@expo/vector-icons';
-import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { Alert, Image, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 interface SettingItemProps {
@@ -116,8 +117,10 @@ export default function SettingsScreen() {
 		);
 	};
 
-	const userName = profile?.full_name || 'User';
+	const userMetadata = session?.user?.user_metadata;
+	const userName = userMetadata?.full_name || userMetadata?.name || profile?.full_name || 'User';
 	const userEmail = session?.user?.email || '';
+	const avatarUrl = userMetadata?.avatar_url || userMetadata?.picture || profile?.avatar_url;
 
 	return (
 		<SafeAreaView
@@ -131,16 +134,23 @@ export default function SettingsScreen() {
 			>
 				<Card style={styles.profileCard}>
 					<View style={styles.profileHeader}>
-						<View
-							style={[
-								styles.profileAvatar,
-								{ backgroundColor: colors.accent },
-							]}
-						>
-							<Text style={[styles.profileInitial, { color: colors.primary }]}>
-								{userName.charAt(0).toUpperCase()}
-							</Text>
-						</View>
+						{avatarUrl ? (
+							<Image
+								source={{ uri: avatarUrl }}
+								style={styles.profileAvatarImage}
+							/>
+						) : (
+							<View
+								style={[
+									styles.profileAvatar,
+									{ backgroundColor: colors.accent },
+								]}
+							>
+								<Text style={[styles.profileInitial, { color: colors.primary }]}>
+									{userName.charAt(0).toUpperCase()}
+								</Text>
+							</View>
+						)}
 						<View style={styles.profileInfo}>
 							<Text style={[styles.profileName, { color: colors.foreground }]}>
 								{userName}
@@ -183,24 +193,23 @@ export default function SettingsScreen() {
 					/>
 				</SettingSection>
 
-				<SettingSection title="INTEGRATIONS">
-					<SettingItem
-						icon="logo-google"
-						title="Google Business"
-						subtitle="Connected"
-						onPress={() => { }}
-					/>
+				<View style={styles.section}>
+					<Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>
+						INTEGRATIONS
+					</Text>
+					<GoogleIntegration />
+				</View>
+
+				<SettingSection title="COMING SOON">
 					<SettingItem
 						icon="star"
 						title="Yelp"
 						subtitle="Not connected"
-						onPress={() => { }}
 					/>
 					<SettingItem
 						icon="logo-facebook"
 						title="Facebook"
 						subtitle="Not connected"
-						onPress={() => { }}
 					/>
 				</SettingSection>
 
@@ -270,6 +279,11 @@ const styles = StyleSheet.create({
 		borderRadius: 32,
 		justifyContent: 'center',
 		alignItems: 'center',
+	},
+	profileAvatarImage: {
+		width: 64,
+		height: 64,
+		borderRadius: 32,
 	},
 	profileInitial: {
 		fontSize: 28,
