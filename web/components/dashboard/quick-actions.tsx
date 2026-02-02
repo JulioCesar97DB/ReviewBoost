@@ -40,13 +40,13 @@ export function QuickActions() {
 					<Button
 						key={action.label}
 						variant={action.variant}
-						className="h-auto flex-col items-start gap-1 p-4"
+						className="h-auto flex-col items-start gap-1 p-4 overflow-hidden"
 					>
-						<div className="flex items-center gap-2">
-							<action.icon className="h-4 w-4" />
-							<span className="font-medium">{action.label}</span>
+						<div className="flex items-center gap-2 w-full min-w-0">
+							<action.icon className="h-4 w-4 shrink-0" />
+							<span className="font-medium truncate">{action.label}</span>
 						</div>
-						<span className="text-xs font-normal text-muted-foreground">
+						<span className="text-xs font-normal text-muted-foreground truncate w-full">
 							{action.description}
 						</span>
 					</Button>
