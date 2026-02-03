@@ -1,6 +1,7 @@
 "use client";
 
 import { GoogleIntegrationCard } from "@/components/dashboard/google-integration-card";
+import { QRCodeList } from "@/components/dashboard/qr-code-list";
 import { ThemeSelector } from "@/components/theme-selector";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -148,6 +149,8 @@ function BusinessSettings() {
 					<Button>Save Changes</Button>
 				</CardContent>
 			</Card>
+
+			<QRCodeList />
 		</div>
 	);
 }
