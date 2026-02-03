@@ -12,6 +12,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createClient } from "@/lib/supabase/client";
+import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
 import { Download, Loader2, Palette, QrCode } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -167,6 +168,9 @@ export function QRCodeGenerator({
 		return (
 			<Dialog open={open} onOpenChange={onOpenChange}>
 				<DialogContent className="sm:max-w-md">
+					<VisuallyHidden.Root>
+						<DialogTitle>Loading</DialogTitle>
+					</VisuallyHidden.Root>
 					<div className="flex items-center justify-center py-8">
 						<Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
 					</div>
