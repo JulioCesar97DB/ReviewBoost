@@ -3,15 +3,26 @@ import { Card } from '@/components/ui/card';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { isMockMode } from '@/lib/config';
-import { MockReviewRequestsService, type MockReviewRequest } from '@/lib/mock';
+import {
+	MockContactsService,
+	MockReviewRequestsService,
+	type MockContact,
+	type MockReviewRequest,
+} from '@/lib/mock';
 import { Ionicons } from '@expo/vector-icons';
+import { Picker } from '@react-native-picker/picker';
 import { useCallback, useEffect, useState } from 'react';
 import {
 	ActivityIndicator,
 	FlatList,
+	KeyboardAvoidingView,
+	Modal,
+	Platform,
 	Pressable,
+	ScrollView,
 	StyleSheet,
 	Text,
+	TextInput,
 	View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -60,6 +71,203 @@ function getStatusConfig(status: string, colors: typeof Colors.light) {
 	}
 }
 
+interface NewRequestModalProps {
+	visible: boolean;
+	contacts: MockContact[];
+	onClose: () => void;
+	onSubmit: (contactId: string, channel: 'email' | 'sms' | 'whatsapp', message?: string) => Promise<void>;
+}
+
+function NewRequestModal({ visible, contacts, onClose, onSubmit }: NewRequestModalProps) {
+	const colorScheme = useColorScheme() ?? 'light';
+	const colors = Colors[colorScheme];
+	const [contactId, setContactId] = useState('');
+	const [channel, setChannel] = useState<'email' | 'sms' | 'whatsapp'>('email');
+	const [message, setMessage] = useState('');
+	const [loading, setLoading] = useState(false);
+
+	useEffect(() => {
+		if (!visible) {
+			setContactId('');
+			setChannel('email');
+			setMessage('');
+		}
+	}, [visible]);
+
+	const handleSubmit = async () => {
+		if (!contactId) return;
+		setLoading(true);
+		try {
+			await onSubmit(contactId, channel, message || undefined);
+			onClose();
+		} finally {
+			setLoading(false);
+		}
+	};
+
+	const selectedContact = contacts.find((c) => c.id === contactId);
+
+	return (
+		<Modal
+			visible={visible}
+			animationType="slide"
+			presentationStyle="pageSheet"
+			onRequestClose={onClose}
+		>
+			<KeyboardAvoidingView
+				behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+				style={[styles.modalContainer, { backgroundColor: colors.background }]}
+			>
+				<View style={styles.modalHeader}>
+					<Text style={[styles.modalTitle, { color: colors.foreground }]}>
+						New Review Request
+					</Text>
+					<Pressable onPress={onClose} style={styles.closeButton}>
+						<Ionicons name="close" size={24} color={colors.foreground} />
+					</Pressable>
+				</View>
+
+				<ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
+					<View style={styles.formSection}>
+						<Text style={[styles.label, { color: colors.foreground }]}>
+							Select Contact
+						</Text>
+						<View
+							style={[
+								styles.pickerContainer,
+								{ backgroundColor: colors.card, borderColor: colors.border },
+							]}
+						>
+							<Picker
+								selectedValue={contactId}
+								onValueChange={(value) => setContactId(value)}
+								style={{ color: colors.foreground }}
+							>
+								<Picker.Item label="Choose a contact..." value="" />
+								{contacts.map((contact) => (
+									<Picker.Item
+										key={contact.id}
+										label={`${contact.name} (${contact.email})`}
+										value={contact.id}
+									/>
+								))}
+							</Picker>
+						</View>
+						{selectedContact && (
+							<View style={[styles.contactPreview, { backgroundColor: colors.muted }]}>
+								<View style={[styles.contactAvatar, { backgroundColor: colors.accent }]}>
+									<Text style={[styles.contactAvatarText, { color: colors.primary }]}>
+										{selectedContact.name.charAt(0)}
+									</Text>
+								</View>
+								<View>
+									<Text style={[styles.contactName, { color: colors.foreground }]}>
+										{selectedContact.name}
+									</Text>
+									<Text style={[styles.contactEmail, { color: colors.mutedForeground }]}>
+										{selectedContact.email}
+									</Text>
+								</View>
+							</View>
+						)}
+					</View>
+
+					<View style={styles.formSection}>
+						<Text style={[styles.label, { color: colors.foreground }]}>
+							Send Via
+						</Text>
+						<View style={styles.channelOptions}>
+							{(['email', 'sms', 'whatsapp'] as const).map((ch) => (
+								<Pressable
+									key={ch}
+									onPress={() => setChannel(ch)}
+									style={[
+										styles.channelOption,
+										{
+											backgroundColor: channel === ch ? colors.primary : colors.secondary,
+											borderColor: channel === ch ? colors.primary : colors.border,
+										},
+									]}
+								>
+									<Ionicons
+										name={ch === 'email' ? 'mail' : ch === 'sms' ? 'chatbubble' : 'logo-whatsapp'}
+										size={20}
+										color={channel === ch ? colors.primaryForeground : colors.foreground}
+									/>
+									<Text
+										style={[
+											styles.channelText,
+											{
+												color: channel === ch ? colors.primaryForeground : colors.foreground,
+											},
+										]}
+									>
+										{ch === 'email' ? 'Email' : ch === 'sms' ? 'SMS' : 'WhatsApp'}
+									</Text>
+								</Pressable>
+							))}
+						</View>
+					</View>
+
+					<View style={styles.formSection}>
+						<Text style={[styles.label, { color: colors.foreground }]}>
+							Custom Message (optional)
+						</Text>
+						<TextInput
+							style={[
+								styles.messageInput,
+								{
+									backgroundColor: colors.card,
+									borderColor: colors.border,
+									color: colors.foreground,
+								},
+							]}
+							placeholder="Add a personal touch to your request..."
+							placeholderTextColor={colors.mutedForeground}
+							value={message}
+							onChangeText={setMessage}
+							multiline
+							numberOfLines={4}
+							textAlignVertical="top"
+						/>
+					</View>
+				</ScrollView>
+
+				<View style={styles.modalActions}>
+					<Pressable
+						onPress={onClose}
+						style={[styles.cancelButton, { backgroundColor: colors.secondary }]}
+					>
+						<Text style={[styles.cancelButtonText, { color: colors.foreground }]}>
+							Cancel
+						</Text>
+					</Pressable>
+					<Pressable
+						onPress={handleSubmit}
+						disabled={loading || !contactId}
+						style={[
+							styles.submitButton,
+							{ backgroundColor: colors.primary },
+							(!contactId || loading) && { opacity: 0.5 },
+						]}
+					>
+						{loading ? (
+							<ActivityIndicator size="small" color={colors.primaryForeground} />
+						) : (
+							<>
+								<Ionicons name="paper-plane" size={18} color={colors.primaryForeground} />
+								<Text style={[styles.submitButtonText, { color: colors.primaryForeground }]}>
+									Send Request
+								</Text>
+							</>
+						)}
+					</Pressable>
+				</View>
+			</KeyboardAvoidingView>
+		</Modal>
+	);
+}
+
 function RequestCard({
 	request,
 	onResend,
@@ -84,10 +292,10 @@ function RequestCard({
 					</Text>
 				</View>
 				<View style={styles.requestInfo}>
-					<Text style={[styles.contactName, { color: colors.foreground }]}>
+					<Text style={[styles.contactNameCard, { color: colors.foreground }]}>
 						{request.contact_name}
 					</Text>
-					<Text style={[styles.contactEmail, { color: colors.mutedForeground }]}>
+					<Text style={[styles.contactEmailCard, { color: colors.mutedForeground }]}>
 						{request.contact_email}
 					</Text>
 				</View>
@@ -132,15 +340,21 @@ export default function RequestsScreen() {
 	const colors = Colors[colorScheme];
 	const [filter, setFilter] = useState<FilterType>('all');
 	const [requests, setRequests] = useState<MockReviewRequest[]>([]);
+	const [contacts, setContacts] = useState<MockContact[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [resendingId, setResendingId] = useState<string | null>(null);
+	const [newRequestModalVisible, setNewRequestModalVisible] = useState(false);
 
-	const fetchRequests = useCallback(async () => {
+	const fetchData = useCallback(async () => {
 		setLoading(true);
 		try {
 			if (isMockMode()) {
-				const data = await MockReviewRequestsService.getAll();
-				setRequests(data);
+				const [requestsData, contactsData] = await Promise.all([
+					MockReviewRequestsService.getAll(),
+					MockContactsService.getAll(),
+				]);
+				setRequests(requestsData);
+				setContacts(contactsData);
 			}
 		} finally {
 			setLoading(false);
@@ -148,8 +362,8 @@ export default function RequestsScreen() {
 	}, []);
 
 	useEffect(() => {
-		fetchRequests();
-	}, [fetchRequests]);
+		fetchData();
+	}, [fetchData]);
 
 	const handleResend = async (id: string) => {
 		setResendingId(id);
@@ -162,6 +376,21 @@ export default function RequestsScreen() {
 			}
 		} finally {
 			setResendingId(null);
+		}
+	};
+
+	const handleNewRequest = async (
+		contactId: string,
+		channel: 'email' | 'sms' | 'whatsapp',
+		message?: string
+	) => {
+		if (isMockMode()) {
+			const newRequest = await MockReviewRequestsService.send({
+				contact_id: contactId,
+				channel,
+				message,
+			});
+			setRequests((prev) => [newRequest, ...prev]);
 		}
 	};
 
@@ -184,7 +413,10 @@ export default function RequestsScreen() {
 			edges={['left', 'right']}
 		>
 			<View style={styles.headerSection}>
-				<Button style={styles.newRequestButton}>
+				<Button
+					style={styles.newRequestButton}
+					onPress={() => setNewRequestModalVisible(true)}
+				>
 					<View style={styles.buttonContent}>
 						<Ionicons name="add" size={20} color={colors.primaryForeground} />
 						<Text style={[styles.buttonText, { color: colors.primaryForeground }]}>
@@ -259,6 +491,13 @@ export default function RequestsScreen() {
 					}
 				/>
 			)}
+
+			<NewRequestModal
+				visible={newRequestModalVisible}
+				contacts={contacts}
+				onClose={() => setNewRequestModalVisible(false)}
+				onSubmit={handleNewRequest}
+			/>
 		</SafeAreaView>
 	);
 }
@@ -331,11 +570,11 @@ const styles = StyleSheet.create({
 		flex: 1,
 		marginLeft: 12,
 	},
-	contactName: {
+	contactNameCard: {
 		fontSize: 16,
 		fontWeight: '600',
 	},
-	contactEmail: {
+	contactEmailCard: {
 		fontSize: 13,
 		marginTop: 2,
 	},
@@ -382,5 +621,119 @@ const styles = StyleSheet.create({
 	},
 	emptyText: {
 		fontSize: 16,
+	},
+	// Modal styles
+	modalContainer: {
+		flex: 1,
+		padding: 16,
+	},
+	modalHeader: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		justifyContent: 'space-between',
+		paddingVertical: 16,
+	},
+	modalTitle: {
+		fontSize: 20,
+		fontWeight: '700',
+	},
+	closeButton: {
+		padding: 4,
+	},
+	modalContent: {
+		flex: 1,
+	},
+	formSection: {
+		marginBottom: 24,
+		gap: 8,
+	},
+	label: {
+		fontSize: 16,
+		fontWeight: '600',
+	},
+	pickerContainer: {
+		borderWidth: 1,
+		borderRadius: 12,
+		overflow: 'hidden',
+	},
+	contactPreview: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		padding: 12,
+		borderRadius: 10,
+		gap: 12,
+		marginTop: 8,
+	},
+	contactAvatar: {
+		width: 40,
+		height: 40,
+		borderRadius: 20,
+		justifyContent: 'center',
+		alignItems: 'center',
+	},
+	contactAvatarText: {
+		fontSize: 16,
+		fontWeight: '600',
+	},
+	contactName: {
+		fontSize: 15,
+		fontWeight: '600',
+	},
+	contactEmail: {
+		fontSize: 13,
+	},
+	channelOptions: {
+		flexDirection: 'row',
+		gap: 10,
+	},
+	channelOption: {
+		flex: 1,
+		flexDirection: 'row',
+		alignItems: 'center',
+		justifyContent: 'center',
+		gap: 6,
+		paddingVertical: 12,
+		borderRadius: 10,
+		borderWidth: 1,
+	},
+	channelText: {
+		fontSize: 14,
+		fontWeight: '500',
+	},
+	messageInput: {
+		borderWidth: 1,
+		borderRadius: 12,
+		padding: 16,
+		fontSize: 16,
+		lineHeight: 22,
+		minHeight: 100,
+	},
+	modalActions: {
+		flexDirection: 'row',
+		gap: 12,
+		paddingVertical: 16,
+	},
+	cancelButton: {
+		flex: 1,
+		paddingVertical: 14,
+		borderRadius: 10,
+		alignItems: 'center',
+	},
+	cancelButtonText: {
+		fontSize: 16,
+		fontWeight: '600',
+	},
+	submitButton: {
+		flex: 1,
+		flexDirection: 'row',
+		alignItems: 'center',
+		justifyContent: 'center',
+		gap: 8,
+		paddingVertical: 14,
+		borderRadius: 10,
+	},
+	submitButtonText: {
+		fontSize: 16,
+		fontWeight: '600',
 	},
 });

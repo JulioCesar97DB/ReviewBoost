@@ -3,16 +3,20 @@ import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { isMockMode } from '@/lib/config';
 import type { GoogleReview } from '@/lib/google/business-profile';
-import { MockReviewsService } from '@/lib/mock';
+import { MockAIResponseService, MockReviewsService } from '@/lib/mock';
 import { Ionicons } from '@expo/vector-icons';
 import { useCallback, useEffect, useState } from 'react';
 import {
 	ActivityIndicator,
 	FlatList,
 	Image,
+	KeyboardAvoidingView,
+	Modal,
+	Platform,
 	Pressable,
 	StyleSheet,
 	Text,
+	TextInput,
 	View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -74,7 +78,167 @@ function StarRating({ rating }: { rating: number }) {
 	);
 }
 
-function ReviewCard({ review }: { review: GoogleReview }) {
+interface ResponseModalProps {
+	visible: boolean;
+	review: GoogleReview | null;
+	onClose: () => void;
+	onSubmit: (reviewId: string, response: string) => Promise<void>;
+}
+
+function ResponseModal({ visible, review, onClose, onSubmit }: ResponseModalProps) {
+	const colorScheme = useColorScheme() ?? 'light';
+	const colors = Colors[colorScheme];
+	const [response, setResponse] = useState('');
+	const [loading, setLoading] = useState(false);
+	const [generatingAI, setGeneratingAI] = useState(false);
+
+	useEffect(() => {
+		if (!visible) {
+			setResponse('');
+		}
+	}, [visible]);
+
+	const handleGenerateAI = async () => {
+		if (!review) return;
+		setGeneratingAI(true);
+		try {
+			if (isMockMode()) {
+				const suggestion = await MockAIResponseService.generateResponse(review);
+				setResponse(suggestion);
+			}
+		} finally {
+			setGeneratingAI(false);
+		}
+	};
+
+	const handleSubmit = async () => {
+		if (!review || !response.trim()) return;
+		setLoading(true);
+		try {
+			await onSubmit(review.reviewId, response);
+			onClose();
+		} finally {
+			setLoading(false);
+		}
+	};
+
+	if (!review) return null;
+
+	return (
+		<Modal
+			visible={visible}
+			animationType="slide"
+			presentationStyle="pageSheet"
+			onRequestClose={onClose}
+		>
+			<KeyboardAvoidingView
+				behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+				style={[styles.modalContainer, { backgroundColor: colors.background }]}
+			>
+				<View style={styles.modalHeader}>
+					<Text style={[styles.modalTitle, { color: colors.foreground }]}>
+						Respond to Review
+					</Text>
+					<Pressable onPress={onClose} style={styles.closeButton}>
+						<Ionicons name="close" size={24} color={colors.foreground} />
+					</Pressable>
+				</View>
+
+				<View style={[styles.reviewPreview, { backgroundColor: colors.muted }]}>
+					<View style={styles.reviewPreviewHeader}>
+						<StarRating rating={getNumericRating(review.starRating)} />
+						<Text style={[styles.reviewerName, { color: colors.foreground }]}>
+							{review.reviewer.displayName}
+						</Text>
+					</View>
+					<Text
+						style={[styles.reviewPreviewText, { color: colors.mutedForeground }]}
+						numberOfLines={3}
+					>
+						{review.comment}
+					</Text>
+				</View>
+
+				<View style={styles.responseSection}>
+					<View style={styles.responseHeader}>
+						<Text style={[styles.responseLabel, { color: colors.foreground }]}>
+							Your Response
+						</Text>
+						<Pressable
+							onPress={handleGenerateAI}
+							disabled={generatingAI}
+							style={[styles.aiButton, { backgroundColor: colors.secondary }]}
+						>
+							{generatingAI ? (
+								<ActivityIndicator size="small" color={colors.primary} />
+							) : (
+								<>
+									<Ionicons name="sparkles" size={16} color={colors.primary} />
+									<Text style={[styles.aiButtonText, { color: colors.primary }]}>
+										AI Suggest
+									</Text>
+								</>
+							)}
+						</Pressable>
+					</View>
+					<TextInput
+						style={[
+							styles.responseInput,
+							{
+								backgroundColor: colors.card,
+								borderColor: colors.border,
+								color: colors.foreground,
+							},
+						]}
+						placeholder="Write your response..."
+						placeholderTextColor={colors.mutedForeground}
+						value={response}
+						onChangeText={setResponse}
+						multiline
+						numberOfLines={6}
+						textAlignVertical="top"
+					/>
+				</View>
+
+				<View style={styles.modalActions}>
+					<Pressable
+						onPress={onClose}
+						style={[styles.cancelButton, { backgroundColor: colors.secondary }]}
+					>
+						<Text style={[styles.cancelButtonText, { color: colors.foreground }]}>
+							Cancel
+						</Text>
+					</Pressable>
+					<Pressable
+						onPress={handleSubmit}
+						disabled={loading || !response.trim()}
+						style={[
+							styles.submitButton,
+							{ backgroundColor: colors.primary },
+							(!response.trim() || loading) && { opacity: 0.5 },
+						]}
+					>
+						{loading ? (
+							<ActivityIndicator size="small" color={colors.primaryForeground} />
+						) : (
+							<Text style={[styles.submitButtonText, { color: colors.primaryForeground }]}>
+								Post Response
+							</Text>
+						)}
+					</Pressable>
+				</View>
+			</KeyboardAvoidingView>
+		</Modal>
+	);
+}
+
+function ReviewCard({
+	review,
+	onRespond,
+}: {
+	review: GoogleReview;
+	onRespond: (review: GoogleReview) => void;
+}) {
 	const colorScheme = useColorScheme() ?? 'light';
 	const colors = Colors[colorScheme];
 	const rating = getNumericRating(review.starRating);
@@ -143,13 +307,26 @@ function ReviewCard({ review }: { review: GoogleReview }) {
 				</View>
 			)}
 			{!hasResponse && (
-				<Pressable
-					style={[styles.respondButton, { backgroundColor: colors.primary }]}
-				>
-					<Text style={[styles.respondText, { color: colors.primaryForeground }]}>
-						Respond
-					</Text>
-				</Pressable>
+				<View style={styles.actionButtons}>
+					<Pressable
+						style={[styles.respondButton, { backgroundColor: colors.primary }]}
+						onPress={() => onRespond(review)}
+					>
+						<Ionicons name="chatbubble" size={16} color={colors.primaryForeground} />
+						<Text style={[styles.respondText, { color: colors.primaryForeground }]}>
+							Respond
+						</Text>
+					</Pressable>
+					<Pressable
+						style={[styles.aiSuggestButton, { backgroundColor: colors.secondary }]}
+						onPress={() => onRespond(review)}
+					>
+						<Ionicons name="sparkles" size={16} color={colors.primary} />
+						<Text style={[styles.aiSuggestText, { color: colors.primary }]}>
+							AI Suggest
+						</Text>
+					</Pressable>
+				</View>
 			)}
 		</Card>
 	);
@@ -161,6 +338,8 @@ export default function ReviewsScreen() {
 	const [filter, setFilter] = useState<FilterType>('all');
 	const [reviews, setReviews] = useState<GoogleReview[]>([]);
 	const [loading, setLoading] = useState(true);
+	const [selectedReview, setSelectedReview] = useState<GoogleReview | null>(null);
+	const [responseModalVisible, setResponseModalVisible] = useState(false);
 
 	const fetchReviews = useCallback(async () => {
 		setLoading(true);
@@ -177,6 +356,20 @@ export default function ReviewsScreen() {
 	useEffect(() => {
 		fetchReviews();
 	}, [fetchReviews]);
+
+	const handleRespond = (review: GoogleReview) => {
+		setSelectedReview(review);
+		setResponseModalVisible(true);
+	};
+
+	const handleSubmitResponse = async (reviewId: string, response: string) => {
+		if (isMockMode()) {
+			const updatedReview = await MockReviewsService.replyToReview(reviewId, response);
+			setReviews((prev) =>
+				prev.map((r) => (r.reviewId === reviewId ? updatedReview : r))
+			);
+		}
+	};
 
 	const filteredReviews = reviews.filter((review) => {
 		const hasResponse = !!review.reviewReply;
@@ -233,18 +426,15 @@ export default function ReviewsScreen() {
 				<FlatList
 					data={filteredReviews}
 					keyExtractor={(item) => item.reviewId}
-					renderItem={({ item }) => <ReviewCard review={item} />}
+					renderItem={({ item }) => (
+						<ReviewCard review={item} onRespond={handleRespond} />
+					)}
 					contentContainerStyle={styles.listContent}
 					showsVerticalScrollIndicator={false}
 					initialNumToRender={10}
 					maxToRenderPerBatch={10}
 					windowSize={5}
 					removeClippedSubviews={true}
-					getItemLayout={(_, index) => ({
-						length: 200,
-						offset: 200 * index + 12 * index,
-						index,
-					})}
 					ListEmptyComponent={
 						<View style={styles.emptyState}>
 							<Ionicons
@@ -259,6 +449,16 @@ export default function ReviewsScreen() {
 					}
 				/>
 			)}
+
+			<ResponseModal
+				visible={responseModalVisible}
+				review={selectedReview}
+				onClose={() => {
+					setResponseModalVisible(false);
+					setSelectedReview(null);
+				}}
+				onSubmit={handleSubmitResponse}
+			/>
 		</SafeAreaView>
 	);
 }
@@ -362,12 +562,33 @@ const styles = StyleSheet.create({
 		fontSize: 14,
 		lineHeight: 20,
 	},
+	actionButtons: {
+		flexDirection: 'row',
+		gap: 8,
+	},
 	respondButton: {
+		flex: 1,
+		flexDirection: 'row',
+		alignItems: 'center',
+		justifyContent: 'center',
+		gap: 6,
 		paddingVertical: 10,
 		borderRadius: 8,
-		alignItems: 'center',
 	},
 	respondText: {
+		fontSize: 14,
+		fontWeight: '600',
+	},
+	aiSuggestButton: {
+		flex: 1,
+		flexDirection: 'row',
+		alignItems: 'center',
+		justifyContent: 'center',
+		gap: 6,
+		paddingVertical: 10,
+		borderRadius: 8,
+	},
+	aiSuggestText: {
 		fontSize: 14,
 		fontWeight: '600',
 	},
@@ -379,5 +600,101 @@ const styles = StyleSheet.create({
 	},
 	emptyText: {
 		fontSize: 16,
+	},
+	// Modal styles
+	modalContainer: {
+		flex: 1,
+		padding: 16,
+	},
+	modalHeader: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		justifyContent: 'space-between',
+		paddingVertical: 16,
+	},
+	modalTitle: {
+		fontSize: 20,
+		fontWeight: '700',
+	},
+	closeButton: {
+		padding: 4,
+	},
+	reviewPreview: {
+		padding: 16,
+		borderRadius: 12,
+		gap: 8,
+	},
+	reviewPreviewHeader: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		gap: 8,
+	},
+	reviewerName: {
+		fontSize: 14,
+		fontWeight: '600',
+	},
+	reviewPreviewText: {
+		fontSize: 14,
+		lineHeight: 20,
+	},
+	responseSection: {
+		flex: 1,
+		marginTop: 16,
+		gap: 8,
+	},
+	responseHeader: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		justifyContent: 'space-between',
+	},
+	responseLabel: {
+		fontSize: 16,
+		fontWeight: '600',
+	},
+	aiButton: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		gap: 6,
+		paddingHorizontal: 12,
+		paddingVertical: 8,
+		borderRadius: 8,
+	},
+	aiButtonText: {
+		fontSize: 14,
+		fontWeight: '500',
+	},
+	responseInput: {
+		flex: 1,
+		borderWidth: 1,
+		borderRadius: 12,
+		padding: 16,
+		fontSize: 16,
+		lineHeight: 24,
+		minHeight: 150,
+	},
+	modalActions: {
+		flexDirection: 'row',
+		gap: 12,
+		paddingVertical: 16,
+	},
+	cancelButton: {
+		flex: 1,
+		paddingVertical: 14,
+		borderRadius: 10,
+		alignItems: 'center',
+	},
+	cancelButtonText: {
+		fontSize: 16,
+		fontWeight: '600',
+	},
+	submitButton: {
+		flex: 1,
+		paddingVertical: 14,
+		borderRadius: 10,
+		alignItems: 'center',
+	},
+	submitButtonText: {
+		fontSize: 16,
+		fontWeight: '600',
 	},
 });

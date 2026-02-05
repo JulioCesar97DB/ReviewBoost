@@ -1,7 +1,7 @@
 import {
 	DarkTheme,
 	DefaultTheme,
-	ThemeProvider,
+	ThemeProvider as NavigationThemeProvider,
 } from '@react-navigation/native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -12,10 +12,11 @@ import { Colors } from '@/constants/theme';
 import { useAuthContext } from '@/hooks/use-auth-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import AuthProvider from '@/providers/auth-provider';
+import { ThemeProvider } from '@/providers/theme-provider';
 
 function RootNavigator() {
 	const { isLoggedIn } = useAuthContext();
-	const colorScheme = useColorScheme() ?? 'light';
+	const colorScheme = useColorScheme();
 	const colors = Colors[colorScheme];
 
 	const customLightTheme = {
@@ -45,7 +46,7 @@ function RootNavigator() {
 	};
 
 	return (
-		<ThemeProvider value={colorScheme === 'dark' ? customDarkTheme : customLightTheme}>
+		<NavigationThemeProvider value={colorScheme === 'dark' ? customDarkTheme : customLightTheme}>
 			<Stack screenOptions={{ headerShown: false }}>
 				<Stack.Protected guard={isLoggedIn}>
 					<Stack.Screen name="(tabs)" />
@@ -55,16 +56,18 @@ function RootNavigator() {
 				</Stack.Protected>
 				<Stack.Screen name="+not-found" />
 			</Stack>
-		</ThemeProvider>
+			<StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+		</NavigationThemeProvider>
 	);
 }
 
 export default function RootLayout() {
 	return (
-		<AuthProvider>
-			<SplashScreenController />
-			<RootNavigator />
-			<StatusBar style="auto" />
-		</AuthProvider>
+		<ThemeProvider>
+			<AuthProvider>
+				<SplashScreenController />
+				<RootNavigator />
+			</AuthProvider>
+		</ThemeProvider>
 	);
 }

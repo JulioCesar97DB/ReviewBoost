@@ -1,4 +1,5 @@
 import { GoogleIntegration } from '@/components/settings/google-integration';
+import { QRCodesSection } from '@/components/settings/qr-codes';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Colors } from '@/constants/theme';
@@ -26,7 +27,7 @@ function SettingItem({
 	rightElement,
 	destructive,
 }: SettingItemProps) {
-	const colorScheme = useColorScheme() ?? 'light';
+	const colorScheme = useColorScheme();
 	const colors = Colors[colorScheme];
 
 	return (
@@ -82,7 +83,7 @@ function SettingSection({
 	title: string;
 	children: React.ReactNode;
 }) {
-	const colorScheme = useColorScheme() ?? 'light';
+	const colorScheme = useColorScheme();
 	const colors = Colors[colorScheme];
 
 	return (
@@ -96,9 +97,10 @@ function SettingSection({
 }
 
 export default function SettingsScreen() {
-	const colorScheme = useColorScheme() ?? 'light';
+	const colorScheme = useColorScheme();
 	const colors = Colors[colorScheme];
 	const { profile, session } = useAuthContext();
+	const { toggleTheme } = useTheme();
 
 	const handleSignOut = () => {
 		Alert.alert(
@@ -179,7 +181,7 @@ export default function SettingsScreen() {
 						rightElement={
 							<Switch
 								value={colorScheme === 'dark'}
-								onValueChange={() => { }}
+								onValueChange={toggleTheme}
 								trackColor={{ false: colors.border, true: colors.primary }}
 								thumbColor={colors.card}
 							/>
@@ -198,6 +200,13 @@ export default function SettingsScreen() {
 						INTEGRATIONS
 					</Text>
 					<GoogleIntegration />
+				</View>
+
+				<View style={styles.section}>
+					<Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>
+						QR CODES
+					</Text>
+					<QRCodesSection />
 				</View>
 
 				<SettingSection title="COMING SOON">
