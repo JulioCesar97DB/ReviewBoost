@@ -1,51 +1,51 @@
+"use client";
+
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { starRatingToNumber } from "@/lib/google/business-profile";
+import { MOCK_REVIEWS, type GoogleReview } from "@/lib/mock";
+import { isMockMode } from "@/lib/services/google-business";
 import { MessageSquare, Star } from "lucide-react";
+import Link from "next/link";
+import { useEffect, useState } from "react";
 
 interface Review {
 	id: string;
 	author: string;
+	avatarUrl?: string;
 	rating: number;
 	text: string;
 	date: string;
 	responded: boolean;
 }
 
-const recentReviews: Review[] = [
-	{
-		id: "1",
-		author: "Maria Gonzalez",
-		rating: 5,
-		text: "Excellent service! The staff was very friendly and professional. I will definitely come back.",
-		date: "2 hours ago",
-		responded: false,
-	},
-	{
-		id: "2",
-		author: "Carlos Rodriguez",
-		rating: 4,
-		text: "Very good place, although the wait time was a bit long. The quality of service makes up for it.",
-		date: "5 hours ago",
-		responded: true,
-	},
-	{
-		id: "3",
-		author: "Ana Martinez",
-		rating: 5,
-		text: "Incredible experience! They exceeded all my expectations. 100% recommended.",
-		date: "Yesterday",
-		responded: true,
-	},
-	{
-		id: "4",
-		author: "Pedro Lopez",
-		rating: 2,
-		text: "I was not satisfied with the service. I expected much more for the price I paid.",
-		date: "2 days ago",
-		responded: false,
-	},
-];
+function formatRelativeTime(dateString: string): string {
+	const date = new Date(dateString);
+	const now = new Date();
+	const diffMs = now.getTime() - date.getTime();
+	const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+	const diffDays = Math.floor(diffHours / 24);
+
+	if (diffHours < 1) return "Just now";
+	if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? "s" : ""} ago`;
+	if (diffDays === 1) return "Yesterday";
+	if (diffDays < 7) return `${diffDays} days ago`;
+	if (diffDays < 30) return `${Math.floor(diffDays / 7)} week${Math.floor(diffDays / 7) > 1 ? "s" : ""} ago`;
+	return date.toLocaleDateString();
+}
+
+function transformGoogleReview(review: GoogleReview): Review {
+	return {
+		id: review.reviewId,
+		author: review.reviewer.displayName,
+		avatarUrl: review.reviewer.profilePhotoUrl,
+		rating: starRatingToNumber(review.starRating),
+		text: review.comment || "",
+		date: formatRelativeTime(review.createTime),
+		responded: !!review.reviewReply,
+	};
+}
 
 function StarRating({ rating }: { rating: number }) {
 	return (
@@ -62,28 +62,67 @@ function StarRating({ rating }: { rating: number }) {
 }
 
 export function RecentReviews() {
+	const [reviews, setReviews] = useState<Review[]>([]);
+	const [loading, setLoading] = useState(true);
+
+	useEffect(() => {
+		const loadReviews = async () => {
+			if (isMockMode()) {
+				const recentMockReviews = MOCK_REVIEWS.slice(0, 4).map(transformGoogleReview);
+				setReviews(recentMockReviews);
+			}
+			setLoading(false);
+		};
+
+		loadReviews();
+	}, []);
+
+	if (loading) {
+		return (
+			<Card className="col-span-full lg:col-span-2">
+				<CardHeader>
+					<div className="h-6 w-32 animate-pulse rounded bg-muted" />
+				</CardHeader>
+				<CardContent className="space-y-4">
+					{[...Array(3)].map((_, i) => (
+						<div key={i} className="h-32 animate-pulse rounded-lg bg-muted" />
+					))}
+				</CardContent>
+			</Card>
+		);
+	}
+
 	return (
 		<Card className="col-span-full lg:col-span-2">
 			<CardHeader className="flex flex-row items-center justify-between">
 				<CardTitle>Recent reviews</CardTitle>
-				<Button variant="outline" size="sm">
-					View all
+				<Button variant="outline" size="sm" asChild>
+					<Link href="/dashboard/reviews">View all</Link>
 				</Button>
 			</CardHeader>
 			<CardContent className="space-y-4">
-				{recentReviews.map((review) => (
+				{reviews.map((review) => (
 					<div
 						key={review.id}
 						className="flex flex-col gap-3 rounded-lg border border-border p-4"
 					>
 						<div className="flex items-start justify-between gap-4">
 							<div className="flex items-center gap-3">
-								<div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-sm font-medium text-primary">
-									{review.author
-										.split(" ")
-										.map((n) => n[0])
-										.join("")}
-								</div>
+								{review.avatarUrl ? (
+									/* eslint-disable-next-line @next/next/no-img-element */
+									<img
+										src={review.avatarUrl}
+										alt={review.author}
+										className="h-10 w-10 rounded-full object-cover"
+									/>
+								) : (
+									<div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-sm font-medium text-primary">
+										{review.author
+											.split(" ")
+											.map((n) => n[0])
+											.join("")}
+									</div>
+								)}
 								<div>
 									<div className="font-medium">{review.author}</div>
 									<div className="flex items-center gap-2">
