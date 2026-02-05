@@ -3,8 +3,9 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import type { GoogleReview } from "@/lib/google/business-profile";
 import { starRatingToNumber } from "@/lib/google/business-profile";
-import { MOCK_REVIEWS, type GoogleReview } from "@/lib/mock";
+import { MOCK_REVIEWS } from "@/lib/mock";
 import { isMockMode } from "@/lib/services/google-business";
 import { MessageSquare, Star } from "lucide-react";
 import Link from "next/link";
