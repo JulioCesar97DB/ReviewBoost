@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useCSRF } from "@/hooks/use-csrf";
 import { createClient } from "@/lib/supabase/client";
 import { Loader2 } from "lucide-react";
 import Link from "next/link";
@@ -15,9 +16,16 @@ export function LoginForm() {
 	const [error, setError] = useState<string | null>(null);
 	const [isLoading, setIsLoading] = useState(false);
 	const router = useRouter();
+	const { token: csrfToken } = useCSRF();
 
 	const handleLogin = async (e: React.FormEvent) => {
 		e.preventDefault();
+
+		if (!csrfToken) {
+			setError("Security token not available. Please refresh the page.");
+			return;
+		}
+
 		const supabase = createClient();
 		setIsLoading(true);
 		setError(null);
