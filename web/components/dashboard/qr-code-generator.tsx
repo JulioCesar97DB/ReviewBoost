@@ -11,6 +11,8 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { isMockMode } from "@/lib/config";
+import { MockGoogleConnectionService, MockQRCodesService } from "@/lib/mock";
 import { createClient } from "@/lib/supabase/client";
 import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
 import { Download, Loader2, Palette, QrCode } from "lucide-react";
@@ -50,26 +52,45 @@ export function QRCodeGenerator({
 	const [description, setDescription] = useState("");
 	const [selectedColor, setSelectedColor] = useState(0);
 	const [size, setSize] = useState(256);
+	const [reviewUrl, setReviewUrl] = useState<string | null>(null);
 	const qrRef = useRef<HTMLDivElement>(null);
 
 	const supabase = createClient();
 
 	const fetchBusiness = useCallback(async () => {
 		try {
-			const {
-				data: { user },
-			} = await supabase.auth.getUser();
-			if (!user) return;
+			if (isMockMode()) {
+				const status = await MockGoogleConnectionService.getConnectionStatus();
+				if (status.connected && status.business) {
+					setBusiness({
+						id: status.business.id,
+						name: status.business.name,
+						google_place_id: status.business.google_place_id,
+					});
+					setName(`${status.business.name} QR Code`);
+					setReviewUrl(status.business.google_review_url);
+				}
+			} else {
+				const {
+					data: { user },
+				} = await supabase.auth.getUser();
+				if (!user) return;
 
-			const { data } = await supabase
-				.from("businesses")
-				.select("id, name, google_place_id")
-				.eq("user_id", user.id)
-				.single();
+				const { data } = await supabase
+					.from("businesses")
+					.select("id, name, google_place_id")
+					.eq("user_id", user.id)
+					.single();
 
-			if (data) {
-				setBusiness(data);
-				setName(`${data.name} QR Code`);
+				if (data) {
+					setBusiness(data);
+					setName(`${data.name} QR Code`);
+					if (data.google_place_id) {
+						setReviewUrl(
+							`https://search.google.com/local/writereview?placeid=${data.google_place_id}`
+						);
+					}
+				}
 			}
 		} catch (error) {
 			console.error("Error fetching business:", error);
@@ -83,10 +104,6 @@ export function QRCodeGenerator({
 			fetchBusiness();
 		}
 	}, [open, fetchBusiness]);
-
-	const reviewUrl = business?.google_place_id
-		? `https://search.google.com/local/writereview?placeid=${business.google_place_id}`
-		: null;
 
 	const handleDownloadPNG = () => {
 		const svg = qrRef.current?.querySelector("svg");
@@ -135,28 +152,41 @@ export function QRCodeGenerator({
 
 		setSaving(true);
 		try {
-			const svg = qrRef.current?.querySelector("svg");
-			const svgData = svg
-				? new XMLSerializer().serializeToString(svg)
-				: null;
+			if (isMockMode()) {
+				await MockQRCodesService.create({
+					name,
+					style: {
+						foreground: DEFAULT_COLORS[selectedColor].fg,
+						background: DEFAULT_COLORS[selectedColor].bg,
+						logo: true,
+					},
+				});
+				onOpenChange(false);
+				onSuccess?.();
+			} else {
+				const svg = qrRef.current?.querySelector("svg");
+				const svgData = svg
+					? new XMLSerializer().serializeToString(svg)
+					: null;
 
-			const { error } = await supabase.from("qr_codes").insert({
-				business_id: business.id,
-				name,
-				description: description || null,
-				review_url: reviewUrl,
-				qr_svg: svgData,
-				style: {
-					size,
-					color: DEFAULT_COLORS[selectedColor].fg,
-					backgroundColor: DEFAULT_COLORS[selectedColor].bg,
-				},
-			});
+				const { error } = await supabase.from("qr_codes").insert({
+					business_id: business.id,
+					name,
+					description: description || null,
+					review_url: reviewUrl,
+					qr_svg: svgData,
+					style: {
+						size,
+						color: DEFAULT_COLORS[selectedColor].fg,
+						backgroundColor: DEFAULT_COLORS[selectedColor].bg,
+					},
+				});
 
-			if (error) throw error;
+				if (error) throw error;
 
-			onOpenChange(false);
-			onSuccess?.();
+				onOpenChange(false);
+				onSuccess?.();
+			}
 		} catch (error) {
 			console.error("Error saving QR code:", error);
 		} finally {
@@ -179,7 +209,7 @@ export function QRCodeGenerator({
 		);
 	}
 
-	if (!business?.google_place_id) {
+	if (!reviewUrl) {
 		return (
 			<Dialog open={open} onOpenChange={onOpenChange}>
 				<DialogContent className="sm:max-w-md">
@@ -221,7 +251,7 @@ export function QRCodeGenerator({
 							style={{ backgroundColor: DEFAULT_COLORS[selectedColor].bg }}
 						>
 							<QRCodeSVG
-								value={reviewUrl ?? ""}
+								value={reviewUrl}
 								size={size}
 								fgColor={DEFAULT_COLORS[selectedColor].fg}
 								bgColor={DEFAULT_COLORS[selectedColor].bg}

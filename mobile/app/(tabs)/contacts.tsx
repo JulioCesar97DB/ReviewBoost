@@ -3,9 +3,12 @@ import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { isMockMode } from '@/lib/config';
+import { MockContactsService, type MockContact } from '@/lib/mock';
 import { Ionicons } from '@expo/vector-icons';
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
+	ActivityIndicator,
 	FlatList,
 	Pressable,
 	StyleSheet,
@@ -14,57 +17,25 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-interface Contact {
-	id: string;
-	name: string;
-	email: string;
-	phone?: string;
-	lastContacted?: string;
-	reviewCount: number;
+function formatRelativeTime(dateString: string | undefined): string {
+	if (!dateString) return 'Never';
+	const date = new Date(dateString);
+	const now = new Date();
+	const diffMs = now.getTime() - date.getTime();
+	const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+	if (diffDays === 0) return 'Today';
+	if (diffDays === 1) return '1d ago';
+	if (diffDays < 7) return `${diffDays}d ago`;
+	if (diffDays < 30) {
+		const weeks = Math.floor(diffDays / 7);
+		return `${weeks}w ago`;
+	}
+	const months = Math.floor(diffDays / 30);
+	return `${months}mo ago`;
 }
 
-const mockContacts: Contact[] = [
-	{
-		id: '1',
-		name: 'Alice Johnson',
-		email: 'alice@example.com',
-		phone: '+1 234 567 8901',
-		lastContacted: '2 days ago',
-		reviewCount: 2,
-	},
-	{
-		id: '2',
-		name: 'Bob Smith',
-		email: 'bob@example.com',
-		phone: '+1 234 567 8902',
-		lastContacted: '1 week ago',
-		reviewCount: 1,
-	},
-	{
-		id: '3',
-		name: 'Carol Williams',
-		email: 'carol@example.com',
-		lastContacted: '3 weeks ago',
-		reviewCount: 0,
-	},
-	{
-		id: '4',
-		name: 'Dan Brown',
-		email: 'dan@example.com',
-		phone: '+1 234 567 8904',
-		reviewCount: 3,
-	},
-	{
-		id: '5',
-		name: 'Eva Martinez',
-		email: 'eva@example.com',
-		phone: '+1 234 567 8905',
-		lastContacted: '1 month ago',
-		reviewCount: 1,
-	},
-];
-
-function ContactCard({ contact }: { contact: Contact }) {
+function ContactCard({ contact }: { contact: MockContact }) {
 	const colorScheme = useColorScheme() ?? 'light';
 	const colors = Colors[colorScheme];
 
@@ -72,10 +43,7 @@ function ContactCard({ contact }: { contact: Contact }) {
 		<Card style={styles.contactCard}>
 			<View style={styles.contactHeader}>
 				<View
-					style={[
-						styles.avatar,
-						{ backgroundColor: colors.accent },
-					]}
+					style={[styles.avatar, { backgroundColor: colors.accent }]}
 				>
 					<Text style={[styles.avatarText, { color: colors.primary }]}>
 						{contact.name.charAt(0)}
@@ -98,17 +66,15 @@ function ContactCard({ contact }: { contact: Contact }) {
 					<View style={[styles.reviewBadge, { backgroundColor: colors.secondary }]}>
 						<Ionicons name="star" size={12} color={colors.star} />
 						<Text style={[styles.reviewCount, { color: colors.foreground }]}>
-							{contact.reviewCount}
+							{contact.review_count}
 						</Text>
 					</View>
 				</View>
 			</View>
 			<View style={styles.contactFooter}>
-				{contact.lastContacted && (
-					<Text style={[styles.lastContacted, { color: colors.mutedForeground }]}>
-						Last contacted: {contact.lastContacted}
-					</Text>
-				)}
+				<Text style={[styles.lastContacted, { color: colors.mutedForeground }]}>
+					Last contacted: {formatRelativeTime(contact.last_contacted_at)}
+				</Text>
 				<Pressable
 					style={[styles.sendButton, { backgroundColor: colors.primary }]}
 				>
@@ -126,12 +92,37 @@ export default function ContactsScreen() {
 	const colorScheme = useColorScheme() ?? 'light';
 	const colors = Colors[colorScheme];
 	const [searchQuery, setSearchQuery] = useState('');
+	const [contacts, setContacts] = useState<MockContact[]>([]);
+	const [loading, setLoading] = useState(true);
 
-	const filteredContacts = mockContacts.filter(
-		(contact) =>
-			contact.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-			contact.email.toLowerCase().includes(searchQuery.toLowerCase())
-	);
+	const fetchContacts = useCallback(async () => {
+		setLoading(true);
+		try {
+			if (isMockMode()) {
+				const data = await MockContactsService.getAll();
+				setContacts(data);
+			}
+		} finally {
+			setLoading(false);
+		}
+	}, []);
+
+	useEffect(() => {
+		fetchContacts();
+	}, [fetchContacts]);
+
+	const handleSearch = async (query: string) => {
+		setSearchQuery(query);
+		if (isMockMode()) {
+			if (query.trim()) {
+				const results = await MockContactsService.search(query);
+				setContacts(results);
+			} else {
+				const all = await MockContactsService.getAll();
+				setContacts(all);
+			}
+		}
+	};
 
 	return (
 		<SafeAreaView
@@ -150,7 +141,7 @@ export default function ContactsScreen() {
 						<Input
 							placeholder="Search contacts..."
 							value={searchQuery}
-							onChangeText={setSearchQuery}
+							onChangeText={handleSearch}
 							containerStyle={styles.searchInput}
 							style={styles.searchInputField}
 						/>
@@ -161,34 +152,40 @@ export default function ContactsScreen() {
 				</View>
 			</View>
 
-			<FlatList
-				data={filteredContacts}
-				keyExtractor={(item) => item.id}
-				renderItem={({ item }) => <ContactCard contact={item} />}
-				contentContainerStyle={styles.listContent}
-				showsVerticalScrollIndicator={false}
-				initialNumToRender={10}
-				maxToRenderPerBatch={10}
-				windowSize={5}
-				removeClippedSubviews={true}
-				ListEmptyComponent={
-					<View style={styles.emptyState}>
-						<Ionicons
-							name="people-outline"
-							size={48}
-							color={colors.mutedForeground}
-						/>
-						<Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-							{searchQuery ? 'No contacts found' : 'No contacts yet'}
-						</Text>
-						{!searchQuery && (
-							<Button style={styles.emptyButton}>
-								Add Your First Contact
-							</Button>
-						)}
-					</View>
-				}
-			/>
+			{loading ? (
+				<View style={styles.loadingContainer}>
+					<ActivityIndicator size="large" color={colors.primary} />
+				</View>
+			) : (
+				<FlatList
+					data={contacts}
+					keyExtractor={(item) => item.id}
+					renderItem={({ item }) => <ContactCard contact={item} />}
+					contentContainerStyle={styles.listContent}
+					showsVerticalScrollIndicator={false}
+					initialNumToRender={10}
+					maxToRenderPerBatch={10}
+					windowSize={5}
+					removeClippedSubviews={true}
+					ListEmptyComponent={
+						<View style={styles.emptyState}>
+							<Ionicons
+								name="people-outline"
+								size={48}
+								color={colors.mutedForeground}
+							/>
+							<Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+								{searchQuery ? 'No contacts found' : 'No contacts yet'}
+							</Text>
+							{!searchQuery && (
+								<Button style={styles.emptyButton}>
+									Add Your First Contact
+								</Button>
+							)}
+						</View>
+					}
+				/>
+			)}
 		</SafeAreaView>
 	);
 }
@@ -196,6 +193,11 @@ export default function ContactsScreen() {
 const styles = StyleSheet.create({
 	safeArea: {
 		flex: 1,
+	},
+	loadingContainer: {
+		flex: 1,
+		justifyContent: 'center',
+		alignItems: 'center',
 	},
 	headerSection: {
 		paddingHorizontal: 16,

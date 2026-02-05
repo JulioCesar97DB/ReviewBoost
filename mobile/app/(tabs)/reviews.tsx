@@ -1,10 +1,15 @@
 import { Card } from '@/components/ui/card';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { isMockMode } from '@/lib/config';
+import type { GoogleReview } from '@/lib/google/business-profile';
+import { MockReviewsService } from '@/lib/mock';
 import { Ionicons } from '@expo/vector-icons';
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
+	ActivityIndicator,
 	FlatList,
+	Image,
 	Pressable,
 	StyleSheet,
 	Text,
@@ -12,65 +17,44 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-interface Review {
-	id: string;
-	author: string;
-	rating: number;
-	text: string;
-	platform: 'google' | 'yelp' | 'facebook';
-	date: string;
-	responded: boolean;
+type FilterType = 'all' | 'responded' | 'pending';
+
+function getNumericRating(rating: GoogleReview['starRating']): number {
+	const map: Record<string, number> = {
+		ONE: 1,
+		TWO: 2,
+		THREE: 3,
+		FOUR: 4,
+		FIVE: 5,
+	};
+	return map[rating] || 0;
 }
 
-const mockReviews: Review[] = [
-	{
-		id: '1',
-		author: 'John Davidson',
-		rating: 5,
-		text: 'Excellent service! The team was professional and went above and beyond. Highly recommended for anyone looking for quality work.',
-		platform: 'google',
-		date: '2 hours ago',
-		responded: true,
-	},
-	{
-		id: '2',
-		author: 'Sarah Mitchell',
-		rating: 4,
-		text: 'Great experience overall. The staff was friendly and helpful. Will definitely come back.',
-		platform: 'yelp',
-		date: '5 hours ago',
-		responded: false,
-	},
-	{
-		id: '3',
-		author: 'Mike Roberts',
-		rating: 5,
-		text: 'Best in town! Professional team and excellent results. Could not be happier.',
-		platform: 'google',
-		date: '1 day ago',
-		responded: true,
-	},
-	{
-		id: '4',
-		author: 'Emily Chen',
-		rating: 3,
-		text: 'Decent service but room for improvement. The wait time was longer than expected.',
-		platform: 'facebook',
-		date: '2 days ago',
-		responded: false,
-	},
-	{
-		id: '5',
-		author: 'David Wilson',
-		rating: 5,
-		text: 'Outstanding! Exceeded all my expectations. Will recommend to friends.',
-		platform: 'google',
-		date: '3 days ago',
-		responded: true,
-	},
-];
+function formatRelativeTime(dateString: string): string {
+	const date = new Date(dateString);
+	const now = new Date();
+	const diffMs = now.getTime() - date.getTime();
+	const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
-type FilterType = 'all' | 'responded' | 'pending';
+	if (diffDays === 0) {
+		const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+		if (diffHours === 0) {
+			const diffMins = Math.floor(diffMs / (1000 * 60));
+			return `${diffMins}m ago`;
+		}
+		return `${diffHours}h ago`;
+	} else if (diffDays === 1) {
+		return '1d ago';
+	} else if (diffDays < 7) {
+		return `${diffDays}d ago`;
+	} else if (diffDays < 30) {
+		const weeks = Math.floor(diffDays / 7);
+		return `${weeks}w ago`;
+	} else {
+		const months = Math.floor(diffDays / 30);
+		return `${months}mo ago`;
+	}
+}
 
 function StarRating({ rating }: { rating: number }) {
 	const colorScheme = useColorScheme() ?? 'light';
@@ -90,44 +74,37 @@ function StarRating({ rating }: { rating: number }) {
 	);
 }
 
-function getPlatformIcon(platform: string): keyof typeof Ionicons.glyphMap {
-	switch (platform) {
-		case 'google':
-			return 'logo-google';
-		case 'yelp':
-			return 'star';
-		case 'facebook':
-			return 'logo-facebook';
-		default:
-			return 'globe';
-	}
-}
-
-function ReviewCard({ review }: { review: Review }) {
+function ReviewCard({ review }: { review: GoogleReview }) {
 	const colorScheme = useColorScheme() ?? 'light';
 	const colors = Colors[colorScheme];
+	const rating = getNumericRating(review.starRating);
+	const hasResponse = !!review.reviewReply;
 
 	return (
 		<Card style={styles.reviewCard}>
 			<View style={styles.reviewHeader}>
-				<View
-					style={[
-						styles.avatar,
-						{ backgroundColor: colors.accent },
-					]}
-				>
-					<Text style={[styles.avatarText, { color: colors.primary }]}>
-						{review.author.charAt(0)}
-					</Text>
-				</View>
+				{review.reviewer.profilePhotoUrl ? (
+					<Image
+						source={{ uri: review.reviewer.profilePhotoUrl }}
+						style={styles.avatar}
+					/>
+				) : (
+					<View
+						style={[styles.avatar, { backgroundColor: colors.accent }]}
+					>
+						<Text style={[styles.avatarText, { color: colors.primary }]}>
+							{review.reviewer.displayName.charAt(0)}
+						</Text>
+					</View>
+				)}
 				<View style={styles.reviewInfo}>
 					<Text style={[styles.author, { color: colors.foreground }]}>
-						{review.author}
+						{review.reviewer.displayName}
 					</Text>
 					<View style={styles.reviewMeta}>
-						<StarRating rating={review.rating} />
+						<StarRating rating={rating} />
 						<Ionicons
-							name={getPlatformIcon(review.platform)}
+							name="logo-google"
 							size={14}
 							color={colors.mutedForeground}
 						/>
@@ -135,9 +112,9 @@ function ReviewCard({ review }: { review: Review }) {
 				</View>
 				<View style={styles.reviewRight}>
 					<Text style={[styles.date, { color: colors.mutedForeground }]}>
-						{review.date}
+						{formatRelativeTime(review.createTime)}
 					</Text>
-					{review.responded ? (
+					{hasResponse ? (
 						<View style={[styles.badge, { backgroundColor: colors.success + '20' }]}>
 							<Text style={[styles.badgeText, { color: colors.success }]}>
 								Responded
@@ -153,9 +130,19 @@ function ReviewCard({ review }: { review: Review }) {
 				</View>
 			</View>
 			<Text style={[styles.reviewText, { color: colors.foreground }]}>
-				{review.text}
+				{review.comment}
 			</Text>
-			{!review.responded && (
+			{hasResponse && review.reviewReply && (
+				<View style={[styles.replyContainer, { backgroundColor: colors.muted }]}>
+					<Text style={[styles.replyLabel, { color: colors.mutedForeground }]}>
+						Your response:
+					</Text>
+					<Text style={[styles.replyText, { color: colors.foreground }]}>
+						{review.reviewReply.comment}
+					</Text>
+				</View>
+			)}
+			{!hasResponse && (
 				<Pressable
 					style={[styles.respondButton, { backgroundColor: colors.primary }]}
 				>
@@ -172,10 +159,29 @@ export default function ReviewsScreen() {
 	const colorScheme = useColorScheme() ?? 'light';
 	const colors = Colors[colorScheme];
 	const [filter, setFilter] = useState<FilterType>('all');
+	const [reviews, setReviews] = useState<GoogleReview[]>([]);
+	const [loading, setLoading] = useState(true);
 
-	const filteredReviews = mockReviews.filter((review) => {
-		if (filter === 'responded') return review.responded;
-		if (filter === 'pending') return !review.responded;
+	const fetchReviews = useCallback(async () => {
+		setLoading(true);
+		try {
+			if (isMockMode()) {
+				const data = await MockReviewsService.getAll();
+				setReviews(data);
+			}
+		} finally {
+			setLoading(false);
+		}
+	}, []);
+
+	useEffect(() => {
+		fetchReviews();
+	}, [fetchReviews]);
+
+	const filteredReviews = reviews.filter((review) => {
+		const hasResponse = !!review.reviewReply;
+		if (filter === 'responded') return hasResponse;
+		if (filter === 'pending') return !hasResponse;
 		return true;
 	});
 
@@ -219,34 +225,40 @@ export default function ReviewsScreen() {
 					</Pressable>
 				))}
 			</View>
-			<FlatList
-				data={filteredReviews}
-				keyExtractor={(item) => item.id}
-				renderItem={({ item }) => <ReviewCard review={item} />}
-				contentContainerStyle={styles.listContent}
-				showsVerticalScrollIndicator={false}
-				initialNumToRender={10}
-				maxToRenderPerBatch={10}
-				windowSize={5}
-				removeClippedSubviews={true}
-				getItemLayout={(_, index) => ({
-					length: 180,
-					offset: 180 * index + 12 * index,
-					index,
-				})}
-				ListEmptyComponent={
-					<View style={styles.emptyState}>
-						<Ionicons
-							name="chatbubbles-outline"
-							size={48}
-							color={colors.mutedForeground}
-						/>
-						<Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-							No reviews found
-						</Text>
-					</View>
-				}
-			/>
+			{loading ? (
+				<View style={styles.loadingContainer}>
+					<ActivityIndicator size="large" color={colors.primary} />
+				</View>
+			) : (
+				<FlatList
+					data={filteredReviews}
+					keyExtractor={(item) => item.reviewId}
+					renderItem={({ item }) => <ReviewCard review={item} />}
+					contentContainerStyle={styles.listContent}
+					showsVerticalScrollIndicator={false}
+					initialNumToRender={10}
+					maxToRenderPerBatch={10}
+					windowSize={5}
+					removeClippedSubviews={true}
+					getItemLayout={(_, index) => ({
+						length: 200,
+						offset: 200 * index + 12 * index,
+						index,
+					})}
+					ListEmptyComponent={
+						<View style={styles.emptyState}>
+							<Ionicons
+								name="chatbubbles-outline"
+								size={48}
+								color={colors.mutedForeground}
+							/>
+							<Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+								No reviews found
+							</Text>
+						</View>
+					}
+				/>
+			)}
 		</SafeAreaView>
 	);
 }
@@ -254,6 +266,11 @@ export default function ReviewsScreen() {
 const styles = StyleSheet.create({
 	safeArea: {
 		flex: 1,
+	},
+	loadingContainer: {
+		flex: 1,
+		justifyContent: 'center',
+		alignItems: 'center',
 	},
 	filterContainer: {
 		flexDirection: 'row',
@@ -331,6 +348,19 @@ const styles = StyleSheet.create({
 	reviewText: {
 		fontSize: 14,
 		lineHeight: 21,
+	},
+	replyContainer: {
+		padding: 12,
+		borderRadius: 8,
+		gap: 4,
+	},
+	replyLabel: {
+		fontSize: 12,
+		fontWeight: '500',
+	},
+	replyText: {
+		fontSize: 14,
+		lineHeight: 20,
 	},
 	respondButton: {
 		paddingVertical: 10,

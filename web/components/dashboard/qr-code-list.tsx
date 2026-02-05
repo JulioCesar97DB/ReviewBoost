@@ -9,6 +9,8 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
+import { isMockMode } from "@/lib/config";
+import { MockQRCodesService, type MockQRCode } from "@/lib/mock";
 import { createClient } from "@/lib/supabase/client";
 import {
 	Download,
@@ -17,8 +19,9 @@ import {
 	Plus,
 	QrCode,
 	ScanLine,
-	Trash2
+	Trash2,
 } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import { useCallback, useEffect, useState } from "react";
 import { QRCodeGenerator } from "./qr-code-generator";
 
@@ -40,6 +43,7 @@ interface QRCodeItem {
 
 export function QRCodeList() {
 	const [qrCodes, setQrCodes] = useState<QRCodeItem[]>([]);
+	const [mockQRCodes, setMockQRCodes] = useState<MockQRCode[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [showGenerator, setShowGenerator] = useState(false);
 	const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -48,27 +52,32 @@ export function QRCodeList() {
 
 	const fetchQRCodes = useCallback(async () => {
 		try {
-			const {
-				data: { user },
-			} = await supabase.auth.getUser();
-			if (!user) return;
+			if (isMockMode()) {
+				const data = await MockQRCodesService.getAll();
+				setMockQRCodes(data);
+			} else {
+				const {
+					data: { user },
+				} = await supabase.auth.getUser();
+				if (!user) return;
 
-			const { data: business } = await supabase
-				.from("businesses")
-				.select("id")
-				.eq("user_id", user.id)
-				.single();
+				const { data: business } = await supabase
+					.from("businesses")
+					.select("id")
+					.eq("user_id", user.id)
+					.single();
 
-			if (!business) return;
+				if (!business) return;
 
-			const { data } = await supabase
-				.from("qr_codes")
-				.select("*")
-				.eq("business_id", business.id)
-				.order("created_at", { ascending: false });
+				const { data } = await supabase
+					.from("qr_codes")
+					.select("*")
+					.eq("business_id", business.id)
+					.order("created_at", { ascending: false });
 
-			if (data) {
-				setQrCodes(data);
+				if (data) {
+					setQrCodes(data);
+				}
 			}
 		} catch (error) {
 			console.error("Error fetching QR codes:", error);
@@ -86,9 +95,16 @@ export function QRCodeList() {
 
 		setDeletingId(id);
 		try {
-			const { error } = await supabase.from("qr_codes").delete().eq("id", id);
-			if (error) throw error;
-			setQrCodes((prev) => prev.filter((qr) => qr.id !== id));
+			if (isMockMode()) {
+				const success = await MockQRCodesService.delete(id);
+				if (success) {
+					setMockQRCodes((prev) => prev.filter((qr) => qr.id !== id));
+				}
+			} else {
+				const { error } = await supabase.from("qr_codes").delete().eq("id", id);
+				if (error) throw error;
+				setQrCodes((prev) => prev.filter((qr) => qr.id !== id));
+			}
 		} catch (error) {
 			console.error("Error deleting QR code:", error);
 		} finally {
@@ -96,18 +112,51 @@ export function QRCodeList() {
 		}
 	};
 
-	const handleDownloadSVG = (qrCode: QRCodeItem) => {
-		if (!qrCode.qr_svg) return;
+	const handleDownloadSVG = (qrCode: QRCodeItem | MockQRCode) => {
+		const isMock = "scans" in qrCode;
+		const fg = isMock
+			? qrCode.style.foreground
+			: (qrCode as QRCodeItem).style?.color || "#000000";
+		const bg = isMock
+			? qrCode.style.background
+			: (qrCode as QRCodeItem).style?.backgroundColor || "#ffffff";
 
-		const blob = new Blob([qrCode.qr_svg], { type: "image/svg+xml" });
-		const url = URL.createObjectURL(blob);
-		const downloadLink = document.createElement("a");
-		downloadLink.href = url;
-		downloadLink.download = `${qrCode.name.replace(/\s+/g, "-").toLowerCase()}.svg`;
-		document.body.appendChild(downloadLink);
-		downloadLink.click();
-		document.body.removeChild(downloadLink);
-		URL.revokeObjectURL(url);
+		const tempContainer = document.createElement("div");
+		tempContainer.style.position = "absolute";
+		tempContainer.style.left = "-9999px";
+		document.body.appendChild(tempContainer);
+
+		// Use existing qr_svg if available
+		if (!isMock && (qrCode as QRCodeItem).qr_svg) {
+			const blob = new Blob([(qrCode as QRCodeItem).qr_svg!], {
+				type: "image/svg+xml",
+			});
+			const downloadUrl = URL.createObjectURL(blob);
+			const downloadLink = document.createElement("a");
+			downloadLink.href = downloadUrl;
+			downloadLink.download = `${qrCode.name.replace(/\s+/g, "-").toLowerCase()}.svg`;
+			document.body.appendChild(downloadLink);
+			downloadLink.click();
+			document.body.removeChild(downloadLink);
+			URL.revokeObjectURL(downloadUrl);
+		} else {
+			// For mock, generate basic SVG
+			const svgContent = `<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+				<rect width="256" height="256" fill="${bg}"/>
+				<text x="128" y="128" text-anchor="middle" fill="${fg}" font-size="12">QR: ${qrCode.name}</text>
+			</svg>`;
+			const blob = new Blob([svgContent], { type: "image/svg+xml" });
+			const downloadUrl = URL.createObjectURL(blob);
+			const downloadLink = document.createElement("a");
+			downloadLink.href = downloadUrl;
+			downloadLink.download = `${qrCode.name.replace(/\s+/g, "-").toLowerCase()}.svg`;
+			document.body.appendChild(downloadLink);
+			downloadLink.click();
+			document.body.removeChild(downloadLink);
+			URL.revokeObjectURL(downloadUrl);
+		}
+
+		document.body.removeChild(tempContainer);
 	};
 
 	const formatDate = (dateStr: string) => {
@@ -127,6 +176,8 @@ export function QRCodeList() {
 			</Card>
 		);
 	}
+
+	const displayItems = isMockMode() ? mockQRCodes : qrCodes;
 
 	return (
 		<>
@@ -149,7 +200,7 @@ export function QRCodeList() {
 					</div>
 				</CardHeader>
 				<CardContent>
-					{qrCodes.length === 0 ? (
+					{displayItems.length === 0 ? (
 						<div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-12">
 							<QrCode className="h-12 w-12 text-muted-foreground/50" />
 							<h3 className="mt-4 text-lg font-semibold">No QR Codes Yet</h3>
@@ -164,98 +215,174 @@ export function QRCodeList() {
 						</div>
 					) : (
 						<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-							{qrCodes.map((qrCode) => (
-								<div
-									key={qrCode.id}
-									className="group relative rounded-lg border p-4 transition-colors hover:bg-muted/50"
-								>
-									<div className="flex items-start justify-between">
-										<div className="flex items-center gap-3">
-											{qrCode.qr_svg ? (
+							{isMockMode()
+								? mockQRCodes.map((qrCode) => (
+									<div
+										key={qrCode.id}
+										className="group relative rounded-lg border p-4 transition-colors hover:bg-muted/50"
+									>
+										<div className="flex items-start justify-between">
+											<div className="flex items-center gap-3">
 												<div
 													className="flex h-16 w-16 items-center justify-center rounded-lg"
 													style={{
-														backgroundColor:
-															qrCode.style?.backgroundColor || "#ffffff",
+														backgroundColor: qrCode.style.background,
 													}}
-													dangerouslySetInnerHTML={{
-														__html: qrCode.qr_svg.replace(
-															/width="[^"]*"/,
-															'width="64"'
-														).replace(
-															/height="[^"]*"/,
-															'height="64"'
-														),
-													}}
-												/>
-											) : (
-												<div className="flex h-16 w-16 items-center justify-center rounded-lg bg-muted">
-													<QrCode className="h-8 w-8 text-muted-foreground" />
+												>
+													<QRCodeSVG
+														value={qrCode.url}
+														size={56}
+														fgColor={qrCode.style.foreground}
+														bgColor={qrCode.style.background}
+														level="L"
+													/>
 												</div>
-											)}
-											<div>
-												<h4 className="font-medium">{qrCode.name}</h4>
-												{qrCode.description && (
-													<p className="text-xs text-muted-foreground">
-														{qrCode.description}
+												<div>
+													<h4 className="font-medium">{qrCode.name}</h4>
+													<p className="mt-1 text-xs text-muted-foreground">
+														Created {formatDate(qrCode.created_at)}
 													</p>
-												)}
-												<p className="mt-1 text-xs text-muted-foreground">
-													Created {formatDate(qrCode.created_at)}
-												</p>
+												</div>
+											</div>
+											<Badge variant="default" className="shrink-0">
+												Active
+											</Badge>
+										</div>
+
+										<div className="mt-4 flex items-center justify-between">
+											<div className="flex items-center gap-1 text-sm text-muted-foreground">
+												<ScanLine className="h-4 w-4" />
+												<span>{qrCode.scans} scans</span>
+											</div>
+											<div className="flex gap-1">
+												<Button
+													variant="ghost"
+													size="icon"
+													className="h-8 w-8"
+													onClick={() =>
+														window.open(qrCode.url, "_blank")
+													}
+													title="Open review page"
+												>
+													<ExternalLink className="h-4 w-4" />
+												</Button>
+												<Button
+													variant="ghost"
+													size="icon"
+													className="h-8 w-8"
+													onClick={() => handleDownloadSVG(qrCode)}
+													title="Download SVG"
+												>
+													<Download className="h-4 w-4" />
+												</Button>
+												<Button
+													variant="ghost"
+													size="icon"
+													className="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
+													onClick={() => handleDelete(qrCode.id)}
+													disabled={deletingId === qrCode.id}
+													title="Delete"
+												>
+													{deletingId === qrCode.id ? (
+														<Loader2 className="h-4 w-4 animate-spin" />
+													) : (
+														<Trash2 className="h-4 w-4" />
+													)}
+												</Button>
 											</div>
 										</div>
-										<Badge
-											variant={qrCode.is_active ? "default" : "secondary"}
-											className="shrink-0"
-										>
-											{qrCode.is_active ? "Active" : "Inactive"}
-										</Badge>
 									</div>
-
-									<div className="mt-4 flex items-center justify-between">
-										<div className="flex items-center gap-1 text-sm text-muted-foreground">
-											<ScanLine className="h-4 w-4" />
-											<span>{qrCode.scan_count} scans</span>
-										</div>
-										<div className="flex gap-1">
-											<Button
-												variant="ghost"
-												size="icon"
-												className="h-8 w-8"
-												onClick={() => window.open(qrCode.review_url, "_blank")}
-												title="Open review page"
-											>
-												<ExternalLink className="h-4 w-4" />
-											</Button>
-											<Button
-												variant="ghost"
-												size="icon"
-												className="h-8 w-8"
-												onClick={() => handleDownloadSVG(qrCode)}
-												disabled={!qrCode.qr_svg}
-												title="Download SVG"
-											>
-												<Download className="h-4 w-4" />
-											</Button>
-											<Button
-												variant="ghost"
-												size="icon"
-												className="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
-												onClick={() => handleDelete(qrCode.id)}
-												disabled={deletingId === qrCode.id}
-												title="Delete"
-											>
-												{deletingId === qrCode.id ? (
-													<Loader2 className="h-4 w-4 animate-spin" />
+								))
+								: qrCodes.map((qrCode) => (
+									<div
+										key={qrCode.id}
+										className="group relative rounded-lg border p-4 transition-colors hover:bg-muted/50"
+									>
+										<div className="flex items-start justify-between">
+											<div className="flex items-center gap-3">
+												{qrCode.qr_svg ? (
+													<div
+														className="flex h-16 w-16 items-center justify-center rounded-lg"
+														style={{
+															backgroundColor:
+																qrCode.style?.backgroundColor || "#ffffff",
+														}}
+														dangerouslySetInnerHTML={{
+															__html: qrCode.qr_svg
+																.replace(/width="[^"]*"/, 'width="64"')
+																.replace(/height="[^"]*"/, 'height="64"'),
+														}}
+													/>
 												) : (
-													<Trash2 className="h-4 w-4" />
+													<div className="flex h-16 w-16 items-center justify-center rounded-lg bg-muted">
+														<QrCode className="h-8 w-8 text-muted-foreground" />
+													</div>
 												)}
-											</Button>
+												<div>
+													<h4 className="font-medium">{qrCode.name}</h4>
+													{qrCode.description && (
+														<p className="text-xs text-muted-foreground">
+															{qrCode.description}
+														</p>
+													)}
+													<p className="mt-1 text-xs text-muted-foreground">
+														Created {formatDate(qrCode.created_at)}
+													</p>
+												</div>
+											</div>
+											<Badge
+												variant={qrCode.is_active ? "default" : "secondary"}
+												className="shrink-0"
+											>
+												{qrCode.is_active ? "Active" : "Inactive"}
+											</Badge>
+										</div>
+
+										<div className="mt-4 flex items-center justify-between">
+											<div className="flex items-center gap-1 text-sm text-muted-foreground">
+												<ScanLine className="h-4 w-4" />
+												<span>{qrCode.scan_count} scans</span>
+											</div>
+											<div className="flex gap-1">
+												<Button
+													variant="ghost"
+													size="icon"
+													className="h-8 w-8"
+													onClick={() =>
+														window.open(qrCode.review_url, "_blank")
+													}
+													title="Open review page"
+												>
+													<ExternalLink className="h-4 w-4" />
+												</Button>
+												<Button
+													variant="ghost"
+													size="icon"
+													className="h-8 w-8"
+													onClick={() => handleDownloadSVG(qrCode)}
+													disabled={!qrCode.qr_svg}
+													title="Download SVG"
+												>
+													<Download className="h-4 w-4" />
+												</Button>
+												<Button
+													variant="ghost"
+													size="icon"
+													className="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
+													onClick={() => handleDelete(qrCode.id)}
+													disabled={deletingId === qrCode.id}
+													title="Delete"
+												>
+													{deletingId === qrCode.id ? (
+														<Loader2 className="h-4 w-4 animate-spin" />
+													) : (
+														<Trash2 className="h-4 w-4" />
+													)}
+												</Button>
+											</div>
 										</div>
 									</div>
-								</div>
-							))}
+								))}
 						</div>
 					)}
 				</CardContent>

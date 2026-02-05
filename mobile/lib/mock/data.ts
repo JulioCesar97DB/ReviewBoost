@@ -1,11 +1,17 @@
 import type { GoogleAccount, GoogleLocation, GoogleReview } from '../google/business-profile';
 
+// ============================================================================
+// BUSINESS DATA
+// ============================================================================
+
 export const MOCK_BUSINESS = {
 	id: 'mock-business-123',
 	name: 'CodeCraft Studio',
 	google_place_id: 'ChIJmock123456789',
 	google_account_id: 'accounts/mock-account-123',
 	google_location_id: 'locations/mock-location-123',
+	google_connected_at: new Date().toISOString(),
+	google_review_url: 'https://search.google.com/local/writereview?placeid=ChIJmock123456789',
 };
 
 export const MOCK_ACCOUNT: GoogleAccount = {
@@ -34,6 +40,290 @@ export const MOCK_LOCATION: GoogleLocation = {
 		placeId: 'ChIJmock123456789',
 	},
 };
+
+// ============================================================================
+// CONTACTS DATA
+// ============================================================================
+
+export interface MockContact {
+	id: string;
+	name: string;
+	email: string;
+	phone?: string;
+	created_at: string;
+	last_contacted_at?: string;
+	review_count: number;
+	tags?: string[];
+}
+
+export const MOCK_CONTACTS: MockContact[] = [
+	{
+		id: 'contact-1',
+		name: 'Alice Johnson',
+		email: 'alice.johnson@email.com',
+		phone: '+1 (555) 234-5678',
+		created_at: '2024-01-15T10:00:00Z',
+		last_contacted_at: '2024-01-20T14:30:00Z',
+		review_count: 2,
+		tags: ['vip', 'repeat-customer'],
+	},
+	{
+		id: 'contact-2',
+		name: 'Bob Smith',
+		email: 'bob.smith@company.com',
+		phone: '+1 (555) 345-6789',
+		created_at: '2024-01-10T09:00:00Z',
+		last_contacted_at: '2024-01-18T11:00:00Z',
+		review_count: 1,
+	},
+	{
+		id: 'contact-3',
+		name: 'Carol Williams',
+		email: 'carol.w@gmail.com',
+		created_at: '2024-01-08T16:00:00Z',
+		review_count: 0,
+	},
+	{
+		id: 'contact-4',
+		name: 'Dan Brown',
+		email: 'dan.brown@outlook.com',
+		phone: '+1 (555) 456-7890',
+		created_at: '2024-01-05T12:00:00Z',
+		last_contacted_at: '2024-01-25T09:15:00Z',
+		review_count: 3,
+		tags: ['vip'],
+	},
+	{
+		id: 'contact-5',
+		name: 'Eva Martinez',
+		email: 'eva.martinez@business.com',
+		phone: '+1 (555) 567-8901',
+		created_at: '2024-01-03T14:00:00Z',
+		review_count: 1,
+	},
+	{
+		id: 'contact-6',
+		name: 'Frank Lee',
+		email: 'frank.lee@email.com',
+		created_at: '2024-01-02T10:00:00Z',
+		last_contacted_at: '2024-01-22T16:45:00Z',
+		review_count: 0,
+	},
+	{
+		id: 'contact-7',
+		name: 'Grace Kim',
+		email: 'grace.kim@startup.io',
+		phone: '+1 (555) 678-9012',
+		created_at: '2024-01-01T08:00:00Z',
+		review_count: 2,
+		tags: ['repeat-customer'],
+	},
+];
+
+// ============================================================================
+// REVIEW REQUESTS DATA
+// ============================================================================
+
+export interface MockReviewRequest {
+	id: string;
+	contact_id: string;
+	contact_name: string;
+	contact_email: string;
+	status: 'pending' | 'sent' | 'opened' | 'clicked' | 'reviewed' | 'expired';
+	channel: 'email' | 'sms' | 'whatsapp';
+	sent_at: string;
+	opened_at?: string;
+	clicked_at?: string;
+	reviewed_at?: string;
+	message?: string;
+}
+
+export const MOCK_REVIEW_REQUESTS: MockReviewRequest[] = [
+	{
+		id: 'request-1',
+		contact_id: 'contact-1',
+		contact_name: 'Alice Johnson',
+		contact_email: 'alice.johnson@email.com',
+		status: 'reviewed',
+		channel: 'email',
+		sent_at: '2024-01-20T14:30:00Z',
+		opened_at: '2024-01-20T15:00:00Z',
+		clicked_at: '2024-01-20T15:05:00Z',
+		reviewed_at: '2024-01-20T15:10:00Z',
+	},
+	{
+		id: 'request-2',
+		contact_id: 'contact-2',
+		contact_name: 'Bob Smith',
+		contact_email: 'bob.smith@company.com',
+		status: 'clicked',
+		channel: 'email',
+		sent_at: '2024-01-18T11:00:00Z',
+		opened_at: '2024-01-18T14:00:00Z',
+		clicked_at: '2024-01-18T14:30:00Z',
+	},
+	{
+		id: 'request-3',
+		contact_id: 'contact-3',
+		contact_name: 'Carol Williams',
+		contact_email: 'carol.w@gmail.com',
+		status: 'opened',
+		channel: 'email',
+		sent_at: '2024-01-25T10:00:00Z',
+		opened_at: '2024-01-25T12:00:00Z',
+	},
+	{
+		id: 'request-4',
+		contact_id: 'contact-4',
+		contact_name: 'Dan Brown',
+		contact_email: 'dan.brown@outlook.com',
+		status: 'sent',
+		channel: 'sms',
+		sent_at: '2024-01-25T09:15:00Z',
+	},
+	{
+		id: 'request-5',
+		contact_id: 'contact-6',
+		contact_name: 'Frank Lee',
+		contact_email: 'frank.lee@email.com',
+		status: 'expired',
+		channel: 'email',
+		sent_at: '2024-01-10T16:45:00Z',
+		opened_at: '2024-01-10T18:00:00Z',
+	},
+	{
+		id: 'request-6',
+		contact_id: 'contact-5',
+		contact_name: 'Eva Martinez',
+		contact_email: 'eva.martinez@business.com',
+		status: 'pending',
+		channel: 'email',
+		sent_at: '2024-01-26T08:00:00Z',
+	},
+];
+
+// ============================================================================
+// QR CODES DATA
+// ============================================================================
+
+export interface MockQRCode {
+	id: string;
+	name: string;
+	url: string;
+	scans: number;
+	created_at: string;
+	last_scanned_at?: string;
+	style: {
+		foreground: string;
+		background: string;
+		logo?: boolean;
+	};
+}
+
+export const MOCK_QR_CODES: MockQRCode[] = [
+	{
+		id: 'qr-1',
+		name: 'Front Desk QR',
+		url: 'https://search.google.com/local/writereview?placeid=ChIJmock123456789',
+		scans: 47,
+		created_at: '2024-01-05T10:00:00Z',
+		last_scanned_at: '2024-01-26T09:30:00Z',
+		style: { foreground: '#000000', background: '#FFFFFF', logo: true },
+	},
+	{
+		id: 'qr-2',
+		name: 'Business Card QR',
+		url: 'https://search.google.com/local/writereview?placeid=ChIJmock123456789',
+		scans: 23,
+		created_at: '2024-01-10T14:00:00Z',
+		last_scanned_at: '2024-01-25T16:00:00Z',
+		style: { foreground: '#F97316', background: '#FFFFFF', logo: true },
+	},
+	{
+		id: 'qr-3',
+		name: 'Receipt QR',
+		url: 'https://search.google.com/local/writereview?placeid=ChIJmock123456789',
+		scans: 12,
+		created_at: '2024-01-15T09:00:00Z',
+		style: { foreground: '#000000', background: '#FFFFFF', logo: false },
+	},
+];
+
+// ============================================================================
+// NOTIFICATIONS DATA
+// ============================================================================
+
+export interface MockNotification {
+	id: string;
+	type: 'new_review' | 'review_request_opened' | 'review_request_clicked' | 'negative_review' | 'weekly_summary';
+	title: string;
+	message: string;
+	read: boolean;
+	created_at: string;
+	data?: Record<string, unknown>;
+}
+
+export const MOCK_NOTIFICATIONS: MockNotification[] = [
+	{
+		id: 'notif-1',
+		type: 'new_review',
+		title: 'New 5-star review!',
+		message: 'Sarah Mitchell left a 5-star review on Google.',
+		read: false,
+		created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+		data: { reviewId: 'review-0', rating: 5 },
+	},
+	{
+		id: 'notif-2',
+		type: 'review_request_clicked',
+		title: 'Review link clicked',
+		message: 'Bob Smith clicked your review request link.',
+		read: false,
+		created_at: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
+		data: { requestId: 'request-2' },
+	},
+	{
+		id: 'notif-3',
+		type: 'negative_review',
+		title: '⚠️ Negative review received',
+		message: 'A 2-star review needs your attention.',
+		read: true,
+		created_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+		data: { reviewId: 'review-5', rating: 2 },
+	},
+	{
+		id: 'notif-4',
+		type: 'weekly_summary',
+		title: 'Weekly Summary',
+		message: 'You received 8 new reviews this week. Average rating: 4.6 ⭐',
+		read: true,
+		created_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+	},
+];
+
+// ============================================================================
+// AI RESPONSE TEMPLATES
+// ============================================================================
+
+export const AI_RESPONSE_TEMPLATES = {
+	positive: [
+		"Thank you so much for your wonderful feedback, {name}! We're thrilled to hear about your positive experience with our team. Your kind words mean the world to us, and we look forward to working with you again!",
+		"We truly appreciate you taking the time to share your experience, {name}! It's clients like you who make our work so rewarding. Thank you for your trust in CodeCraft Studio!",
+		"What a fantastic review, {name}! We're so glad we could exceed your expectations. Your satisfaction is our top priority, and we can't wait to collaborate with you on future projects!",
+	],
+	neutral: [
+		"Thank you for your feedback, {name}. We appreciate you sharing your experience with us. We're always looking to improve, and your input helps us do just that. Please don't hesitate to reach out if there's anything we can do better.",
+		"We appreciate your honest review, {name}. While we're glad the end result met your needs, we acknowledge there's room for improvement in our process. We're committed to doing better and hope to earn a higher rating next time.",
+	],
+	negative: [
+		"Thank you for bringing this to our attention, {name}. We sincerely apologize for falling short of your expectations. Your feedback is valuable, and we'd love the opportunity to make things right. Please contact us directly at support@codecraft.studio so we can address your concerns.",
+		"We're truly sorry to hear about your experience, {name}. This isn't the standard we hold ourselves to. We take your feedback seriously and would appreciate the chance to discuss this further. Please reach out to us directly so we can resolve this issue.",
+	],
+};
+
+// ============================================================================
+// REVIEWS DATA
+// ============================================================================
 
 const reviewerNames = [
 	'Sarah Mitchell',

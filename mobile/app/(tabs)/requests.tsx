@@ -2,9 +2,12 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { isMockMode } from '@/lib/config';
+import { MockReviewRequestsService, type MockReviewRequest } from '@/lib/mock';
 import { Ionicons } from '@expo/vector-icons';
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
+	ActivityIndicator,
 	FlatList,
 	Pressable,
 	StyleSheet,
@@ -13,62 +16,43 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-interface ReviewRequest {
-	id: string;
-	contactName: string;
-	contactEmail: string;
-	sentAt: string;
-	status: 'pending' | 'opened' | 'completed' | 'expired';
+type FilterType = 'all' | 'pending' | 'sent' | 'opened' | 'reviewed';
+
+function formatRelativeTime(dateString: string): string {
+	const date = new Date(dateString);
+	const now = new Date();
+	const diffMs = now.getTime() - date.getTime();
+	const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+	if (diffDays === 0) {
+		const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+		if (diffHours === 0) {
+			const diffMins = Math.floor(diffMs / (1000 * 60));
+			return `${diffMins}m ago`;
+		}
+		return `${diffHours}h ago`;
+	} else if (diffDays === 1) {
+		return '1d ago';
+	} else if (diffDays < 7) {
+		return `${diffDays}d ago`;
+	} else {
+		const weeks = Math.floor(diffDays / 7);
+		return `${weeks}w ago`;
+	}
 }
-
-const mockRequests: ReviewRequest[] = [
-	{
-		id: '1',
-		contactName: 'Alice Johnson',
-		contactEmail: 'alice@example.com',
-		sentAt: '2 hours ago',
-		status: 'pending',
-	},
-	{
-		id: '2',
-		contactName: 'Bob Smith',
-		contactEmail: 'bob@example.com',
-		sentAt: '5 hours ago',
-		status: 'opened',
-	},
-	{
-		id: '3',
-		contactName: 'Carol Williams',
-		contactEmail: 'carol@example.com',
-		sentAt: '1 day ago',
-		status: 'completed',
-	},
-	{
-		id: '4',
-		contactName: 'Dan Brown',
-		contactEmail: 'dan@example.com',
-		sentAt: '3 days ago',
-		status: 'expired',
-	},
-	{
-		id: '5',
-		contactName: 'Eva Martinez',
-		contactEmail: 'eva@example.com',
-		sentAt: '4 hours ago',
-		status: 'pending',
-	},
-];
-
-type FilterType = 'all' | 'pending' | 'opened' | 'completed';
 
 function getStatusConfig(status: string, colors: typeof Colors.light) {
 	switch (status) {
 		case 'pending':
 			return { color: colors.warning, label: 'Pending', icon: 'time' as const };
+		case 'sent':
+			return { color: colors.primary, label: 'Sent', icon: 'paper-plane' as const };
 		case 'opened':
 			return { color: colors.primary, label: 'Opened', icon: 'eye' as const };
-		case 'completed':
-			return { color: colors.success, label: 'Completed', icon: 'checkmark-circle' as const };
+		case 'clicked':
+			return { color: '#8b5cf6', label: 'Clicked', icon: 'link' as const };
+		case 'reviewed':
+			return { color: colors.success, label: 'Reviewed', icon: 'checkmark-circle' as const };
 		case 'expired':
 			return { color: colors.destructive, label: 'Expired', icon: 'close-circle' as const };
 		default:
@@ -76,7 +60,15 @@ function getStatusConfig(status: string, colors: typeof Colors.light) {
 	}
 }
 
-function RequestCard({ request }: { request: ReviewRequest }) {
+function RequestCard({
+	request,
+	onResend,
+	resending,
+}: {
+	request: MockReviewRequest;
+	onResend: (id: string) => void;
+	resending: boolean;
+}) {
 	const colorScheme = useColorScheme() ?? 'light';
 	const colors = Colors[colorScheme];
 	const statusConfig = getStatusConfig(request.status, colors);
@@ -85,26 +77,23 @@ function RequestCard({ request }: { request: ReviewRequest }) {
 		<Card style={styles.requestCard}>
 			<View style={styles.requestHeader}>
 				<View
-					style={[
-						styles.avatar,
-						{ backgroundColor: colors.accent },
-					]}
+					style={[styles.avatar, { backgroundColor: colors.accent }]}
 				>
 					<Text style={[styles.avatarText, { color: colors.primary }]}>
-						{request.contactName.charAt(0)}
+						{request.contact_name.charAt(0)}
 					</Text>
 				</View>
 				<View style={styles.requestInfo}>
 					<Text style={[styles.contactName, { color: colors.foreground }]}>
-						{request.contactName}
+						{request.contact_name}
 					</Text>
 					<Text style={[styles.contactEmail, { color: colors.mutedForeground }]}>
-						{request.contactEmail}
+						{request.contact_email}
 					</Text>
 				</View>
 				<View style={styles.requestRight}>
 					<Text style={[styles.sentAt, { color: colors.mutedForeground }]}>
-						{request.sentAt}
+						{formatRelativeTime(request.sent_at)}
 					</Text>
 					<View style={[styles.statusBadge, { backgroundColor: statusConfig.color + '20' }]}>
 						<Ionicons name={statusConfig.icon} size={12} color={statusConfig.color} />
@@ -114,15 +103,23 @@ function RequestCard({ request }: { request: ReviewRequest }) {
 					</View>
 				</View>
 			</View>
-			{request.status === 'pending' && (
+			{(request.status === 'pending' || request.status === 'expired') && (
 				<View style={styles.actions}>
 					<Pressable
 						style={[styles.actionButton, { backgroundColor: colors.secondary }]}
+						onPress={() => onResend(request.id)}
+						disabled={resending}
 					>
-						<Ionicons name="refresh" size={16} color={colors.foreground} />
-						<Text style={[styles.actionText, { color: colors.foreground }]}>
-							Resend
-						</Text>
+						{resending ? (
+							<ActivityIndicator size="small" color={colors.foreground} />
+						) : (
+							<>
+								<Ionicons name="refresh" size={16} color={colors.foreground} />
+								<Text style={[styles.actionText, { color: colors.foreground }]}>
+									Resend
+								</Text>
+							</>
+						)}
 					</Pressable>
 				</View>
 			)}
@@ -134,8 +131,41 @@ export default function RequestsScreen() {
 	const colorScheme = useColorScheme() ?? 'light';
 	const colors = Colors[colorScheme];
 	const [filter, setFilter] = useState<FilterType>('all');
+	const [requests, setRequests] = useState<MockReviewRequest[]>([]);
+	const [loading, setLoading] = useState(true);
+	const [resendingId, setResendingId] = useState<string | null>(null);
 
-	const filteredRequests = mockRequests.filter((request) => {
+	const fetchRequests = useCallback(async () => {
+		setLoading(true);
+		try {
+			if (isMockMode()) {
+				const data = await MockReviewRequestsService.getAll();
+				setRequests(data);
+			}
+		} finally {
+			setLoading(false);
+		}
+	}, []);
+
+	useEffect(() => {
+		fetchRequests();
+	}, [fetchRequests]);
+
+	const handleResend = async (id: string) => {
+		setResendingId(id);
+		try {
+			if (isMockMode()) {
+				const updated = await MockReviewRequestsService.resend(id);
+				setRequests((prev) =>
+					prev.map((r) => (r.id === id ? updated : r))
+				);
+			}
+		} finally {
+			setResendingId(null);
+		}
+	};
+
+	const filteredRequests = requests.filter((request) => {
 		if (filter === 'all') return true;
 		return request.status === filter;
 	});
@@ -143,8 +173,9 @@ export default function RequestsScreen() {
 	const filters: { key: FilterType; label: string }[] = [
 		{ key: 'all', label: 'All' },
 		{ key: 'pending', label: 'Pending' },
+		{ key: 'sent', label: 'Sent' },
 		{ key: 'opened', label: 'Opened' },
-		{ key: 'completed', label: 'Completed' },
+		{ key: 'reviewed', label: 'Reviewed' },
 	];
 
 	return (
@@ -193,29 +224,41 @@ export default function RequestsScreen() {
 				))}
 			</View>
 
-			<FlatList
-				data={filteredRequests}
-				keyExtractor={(item) => item.id}
-				renderItem={({ item }) => <RequestCard request={item} />}
-				contentContainerStyle={styles.listContent}
-				showsVerticalScrollIndicator={false}
-				initialNumToRender={10}
-				maxToRenderPerBatch={10}
-				windowSize={5}
-				removeClippedSubviews={true}
-				ListEmptyComponent={
-					<View style={styles.emptyState}>
-						<Ionicons
-							name="paper-plane-outline"
-							size={48}
-							color={colors.mutedForeground}
+			{loading ? (
+				<View style={styles.loadingContainer}>
+					<ActivityIndicator size="large" color={colors.primary} />
+				</View>
+			) : (
+				<FlatList
+					data={filteredRequests}
+					keyExtractor={(item) => item.id}
+					renderItem={({ item }) => (
+						<RequestCard
+							request={item}
+							onResend={handleResend}
+							resending={resendingId === item.id}
 						/>
-						<Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-							No requests found
-						</Text>
-					</View>
-				}
-			/>
+					)}
+					contentContainerStyle={styles.listContent}
+					showsVerticalScrollIndicator={false}
+					initialNumToRender={10}
+					maxToRenderPerBatch={10}
+					windowSize={5}
+					removeClippedSubviews={true}
+					ListEmptyComponent={
+						<View style={styles.emptyState}>
+							<Ionicons
+								name="paper-plane-outline"
+								size={48}
+								color={colors.mutedForeground}
+							/>
+							<Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+								No requests found
+							</Text>
+						</View>
+					}
+				/>
+			)}
 		</SafeAreaView>
 	);
 }
@@ -223,6 +266,11 @@ export default function RequestsScreen() {
 const styles = StyleSheet.create({
 	safeArea: {
 		flex: 1,
+	},
+	loadingContainer: {
+		flex: 1,
+		justifyContent: 'center',
+		alignItems: 'center',
 	},
 	headerSection: {
 		paddingHorizontal: 16,
