@@ -2,7 +2,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { isGoogleConnected } from '@/lib/google/oauth';
+import { clearStoredTokens, isGoogleConnected } from '@/lib/google/oauth';
 import { SyncResult, syncReviews } from '@/lib/services/review-sync';
 import { supabase } from '@/lib/supabase';
 import { Ionicons } from '@expo/vector-icons';
@@ -130,16 +130,44 @@ export function GoogleIntegration() {
 	const handleDisconnect = () => {
 		Alert.alert(
 			'Disconnect Google',
-			'Are you sure you want to disconnect your Google Business Profile?',
+			'Are you sure you want to disconnect your Google Business Profile? Your synced reviews will remain in the database.',
 			[
 				{ text: 'Cancel', style: 'cancel' },
 				{
 					text: 'Disconnect',
 					style: 'destructive',
 					onPress: async () => {
-						// Clear tokens from SecureStore and database
-						// This would need to be implemented in oauth.ts
-						Alert.alert('Info', 'Disconnect functionality coming soon');
+						try {
+							setLoading(true);
+
+							await clearStoredTokens();
+
+							if (business) {
+								const { error } = await supabase
+									.from('businesses')
+									.update({
+										google_place_id: null,
+										google_connected_at: null,
+										google_access_token: null,
+										google_refresh_token: null,
+									})
+									.eq('id', business.id);
+
+								if (error) {
+									throw error;
+								}
+							}
+
+							setIsConnected(false);
+							setBusiness(business ? { ...business, google_place_id: null, google_connected_at: null } : null);
+
+							Alert.alert('Success', 'Google Business Profile disconnected successfully.');
+						} catch (error) {
+							console.error('Error disconnecting Google:', error);
+							Alert.alert('Error', 'Failed to disconnect. Please try again.');
+						} finally {
+							setLoading(false);
+						}
 					},
 				},
 			]
