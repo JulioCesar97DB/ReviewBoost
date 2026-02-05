@@ -225,6 +225,15 @@ export default function ReviewsScreen() {
 				renderItem={({ item }) => <ReviewCard review={item} />}
 				contentContainerStyle={styles.listContent}
 				showsVerticalScrollIndicator={false}
+				initialNumToRender={10}
+				maxToRenderPerBatch={10}
+				windowSize={5}
+				removeClippedSubviews={true}
+				getItemLayout={(_, index) => ({
+					length: 180,
+					offset: 180 * index + 12 * index,
+					index,
+				})}
 				ListEmptyComponent={
 					<View style={styles.emptyState}>
 						<Ionicons

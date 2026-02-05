@@ -199,6 +199,10 @@ export default function RequestsScreen() {
 				renderItem={({ item }) => <RequestCard request={item} />}
 				contentContainerStyle={styles.listContent}
 				showsVerticalScrollIndicator={false}
+				initialNumToRender={10}
+				maxToRenderPerBatch={10}
+				windowSize={5}
+				removeClippedSubviews={true}
 				ListEmptyComponent={
 					<View style={styles.emptyState}>
 						<Ionicons
