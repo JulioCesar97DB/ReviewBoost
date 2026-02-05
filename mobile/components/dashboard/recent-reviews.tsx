@@ -1,44 +1,49 @@
 import { Card } from '@/components/ui/card';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { starRatingToNumber, type GoogleReview } from '@/lib/google/business-profile';
+import { MOCK_REVIEWS } from '@/lib/mock';
 import { Ionicons } from '@expo/vector-icons';
-import { StyleSheet, Text, View } from 'react-native';
+import { Image } from 'expo-image';
+import { useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 interface Review {
 	id: string;
 	author: string;
+	avatarUrl?: string;
 	rating: number;
 	text: string;
-	platform: string;
 	date: string;
+	responded: boolean;
 }
 
-const mockReviews: Review[] = [
-	{
-		id: '1',
-		author: 'John D.',
-		rating: 5,
-		text: 'Excellent service! Highly recommended.',
-		platform: 'Google',
-		date: '2 hours ago',
-	},
-	{
-		id: '2',
-		author: 'Sarah M.',
-		rating: 4,
-		text: 'Great experience overall. Will come back.',
-		platform: 'Yelp',
-		date: '5 hours ago',
-	},
-	{
-		id: '3',
-		author: 'Mike R.',
-		rating: 5,
-		text: 'Best in town! Professional team.',
-		platform: 'Google',
-		date: '1 day ago',
-	},
-];
+function formatRelativeTime(dateString: string): string {
+	const date = new Date(dateString);
+	const now = new Date();
+	const diffMs = now.getTime() - date.getTime();
+	const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+	const diffDays = Math.floor(diffHours / 24);
+
+	if (diffHours < 1) return 'Just now';
+	if (diffHours < 24) return `${diffHours}h ago`;
+	if (diffDays === 1) return 'Yesterday';
+	if (diffDays < 7) return `${diffDays}d ago`;
+	return date.toLocaleDateString();
+}
+
+function transformGoogleReview(review: GoogleReview): Review {
+	return {
+		id: review.reviewId,
+		author: review.reviewer.displayName,
+		avatarUrl: review.reviewer.profilePhotoUrl,
+		rating: starRatingToNumber(review.starRating),
+		text: review.comment || '',
+		date: formatRelativeTime(review.createTime),
+		responded: !!review.reviewReply,
+	};
+}
 
 function StarRating({ rating }: { rating: number }) {
 	const colorScheme = useColorScheme() ?? 'light';
@@ -65,25 +70,38 @@ function ReviewItem({ review }: { review: Review }) {
 	return (
 		<View style={[styles.reviewItem, { borderBottomColor: colors.border }]}>
 			<View style={styles.reviewHeader}>
-				<View
-					style={[
-						styles.avatar,
-						{ backgroundColor: colors.accent },
-					]}
-				>
-					<Text style={[styles.avatarText, { color: colors.primary }]}>
-						{review.author.charAt(0)}
-					</Text>
-				</View>
+				{review.avatarUrl ? (
+					<Image
+						source={{ uri: review.avatarUrl }}
+						style={styles.avatar}
+						contentFit="cover"
+					/>
+				) : (
+					<View style={[styles.avatar, { backgroundColor: colors.accent }]}>
+						<Text style={[styles.avatarText, { color: colors.primary }]}>
+							{review.author.charAt(0)}
+						</Text>
+					</View>
+				)}
 				<View style={styles.reviewInfo}>
 					<Text style={[styles.author, { color: colors.foreground }]}>
 						{review.author}
 					</Text>
 					<View style={styles.reviewMeta}>
 						<StarRating rating={review.rating} />
-						<Text style={[styles.platform, { color: colors.mutedForeground }]}>
-							{review.platform}
-						</Text>
+						{review.responded ? (
+							<View style={[styles.badge, { backgroundColor: colors.success + '20' }]}>
+								<Text style={[styles.badgeText, { color: colors.success }]}>
+									Replied
+								</Text>
+							</View>
+						) : (
+							<View style={[styles.badge, { backgroundColor: colors.warning + '20' }]}>
+								<Text style={[styles.badgeText, { color: colors.warning }]}>
+									Pending
+								</Text>
+							</View>
+						)}
 					</View>
 				</View>
 				<Text style={[styles.date, { color: colors.mutedForeground }]}>
@@ -103,6 +121,17 @@ function ReviewItem({ review }: { review: Review }) {
 export function RecentReviews() {
 	const colorScheme = useColorScheme() ?? 'light';
 	const colors = Colors[colorScheme];
+	const router = useRouter();
+	const [reviews, setReviews] = useState<Review[]>([]);
+
+	useEffect(() => {
+		const loadReviews = () => {
+			const recentReviews = MOCK_REVIEWS.slice(0, 3).map(transformGoogleReview);
+			setReviews(recentReviews);
+		};
+
+		loadReviews();
+	}, []);
 
 	return (
 		<Card style={styles.card}>
@@ -110,10 +139,12 @@ export function RecentReviews() {
 				<Text style={[styles.title, { color: colors.foreground }]}>
 					Recent Reviews
 				</Text>
-				<Text style={[styles.viewAll, { color: colors.primary }]}>View all</Text>
+				<Pressable onPress={() => router.push('/reviews')}>
+					<Text style={[styles.viewAll, { color: colors.primary }]}>View all</Text>
+				</Pressable>
 			</View>
 			<View style={styles.reviews}>
-				{mockReviews.map((review) => (
+				{reviews.map((review) => (
 					<ReviewItem key={review.id} review={review} />
 				))}
 			</View>
@@ -183,8 +214,14 @@ const styles = StyleSheet.create({
 		flexDirection: 'row',
 		gap: 2,
 	},
-	platform: {
-		fontSize: 12,
+	badge: {
+		paddingHorizontal: 6,
+		paddingVertical: 2,
+		borderRadius: 8,
+	},
+	badgeText: {
+		fontSize: 10,
+		fontWeight: '500',
 	},
 	date: {
 		fontSize: 12,

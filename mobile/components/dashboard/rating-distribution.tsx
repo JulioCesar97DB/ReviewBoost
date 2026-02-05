@@ -1,7 +1,9 @@
 import { Card } from '@/components/ui/card';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { getBusinessStats } from '@/lib/services/google-business';
 import { Ionicons } from '@expo/vector-icons';
+import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 interface RatingData {
@@ -9,14 +11,6 @@ interface RatingData {
 	count: number;
 	percentage: number;
 }
-
-const ratingData: RatingData[] = [
-	{ stars: 5, count: 89, percentage: 65 },
-	{ stars: 4, count: 32, percentage: 23 },
-	{ stars: 3, count: 12, percentage: 9 },
-	{ stars: 2, count: 3, percentage: 2 },
-	{ stars: 1, count: 1, percentage: 1 },
-];
 
 function RatingBar({ data }: { data: RatingData }) {
 	const colorScheme = useColorScheme() ?? 'light';
@@ -51,12 +45,31 @@ function RatingBar({ data }: { data: RatingData }) {
 export function RatingDistribution() {
 	const colorScheme = useColorScheme() ?? 'light';
 	const colors = Colors[colorScheme];
+	const [ratingData, setRatingData] = useState<RatingData[]>([]);
+	const [totalReviews, setTotalReviews] = useState(0);
+	const [avgRating, setAvgRating] = useState('0.0');
 
-	const totalReviews = ratingData.reduce((sum, item) => sum + item.count, 0);
-	const avgRating = (
-		ratingData.reduce((sum, item) => sum + item.stars * item.count, 0) /
-		totalReviews
-	).toFixed(1);
+	useEffect(() => {
+		const loadData = () => {
+			const stats = getBusinessStats();
+			const total = stats.totalReviews;
+
+			const data: RatingData[] = [5, 4, 3, 2, 1].map((stars) => {
+				const count = stats.ratingDistribution[stars] || 0;
+				return {
+					stars,
+					count,
+					percentage: total > 0 ? Math.round((count / total) * 100) : 0,
+				};
+			});
+
+			setRatingData(data);
+			setTotalReviews(total);
+			setAvgRating(stats.averageRating.toFixed(1));
+		};
+
+		loadData();
+	}, []);
 
 	return (
 		<Card style={styles.card}>
