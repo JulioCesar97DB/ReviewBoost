@@ -6,6 +6,7 @@ import { Colors } from '@/constants/theme';
 import { useAuthContext } from '@/hooks/use-auth-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { supabase } from '@/lib/supabase';
+import { useTheme } from '@/providers/theme-provider';
 import { Ionicons } from '@expo/vector-icons';
 import { Alert, Image, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
